@@ -173,7 +173,8 @@ def _current(frame: pd.DataFrame) -> pd.Series:
         A boolean series aligned with the index of `frame`.
     """
     hashes = frame["task_hash"] + "/" + frame["protocol_hash"]
-    newest = frame.assign(_hashes=hashes).sort_values("evaluated_at")
+    columns = {"_hashes": hashes, **{c: frame[c] for c in ("task", "protocol", "evaluated_at")}}
+    newest = pd.DataFrame(columns).sort_values("evaluated_at")
     latest = newest.groupby(["task", "protocol"])["_hashes"].last()
     keys = pd.MultiIndex.from_frame(frame[["task", "protocol"]])
     return pd.Series(hashes.to_numpy() == latest.reindex(keys).to_numpy(), index=frame.index)
