@@ -1,0 +1,2241 @@
+{
+  "version": 29,
+  "sha256": "94251e1ec0187ade4e14ca6e74eb7777369b2f093ad40f6baa3a0906585293f3",
+  "datasets": [
+    {
+      "key": "ai-koda",
+      "name": "AI-KODA",
+      "labelled": true,
+      "modality": "wireless capsule endoscopy frames",
+      "licence": "CC BY 4.0",
+      "access": "open",
+      "url": "https://doi.org/10.6084/m9.figshare.25807915",
+      "citation": "Handa et al. 2024, figshare, doi 10.6084/m9.figshare.25807915",
+      "provenance": "All India Institute of Medical Sciences, New Delhi. 2,173 frames of 28 patients scored with the Korea Canada cleanliness scale.",
+      "family": "aiims-capsule",
+      "label_source": "gastroenterologists",
+      "downloads": [
+        {
+          "url": "https://ndownloader.figshare.com/files/46284817",
+          "filename": "Dataset.zip",
+          "checksum": "md5:710db98ada33e48f4610bd0f49ec3e5e",
+          "size": 264768401,
+          "index": "sha256:e674fb46b6615da40881672e495f285a9b2ae3e3d81860de037556b83302f689",
+          "extract": true
+        }
+      ],
+      "overlaps": [
+        {
+          "dataset": "wcebleedgen",
+          "kind": "same_source",
+          "evidence": "https://doi.org/10.5281/zenodo.10156571",
+          "note": "both compiled by the same group at AIIMS New Delhi, overlap unverified",
+          "name": ""
+        }
+      ],
+      "notes": "File names carry the patient initials, which define the groups. No split is released, so the benchmark holds out a stratified fifth of the patients."
+    },
+    {
+      "key": "cad-sel",
+      "name": "CAD-SEL",
+      "labelled": true,
+      "modality": "white light colonoscopy and endoscopic ultrasound stills",
+      "licence": "CC BY 4.0",
+      "access": "open",
+      "url": "https://doi.org/10.6084/m9.figshare.29945483",
+      "citation": "Xu et al. 2026, Scientific Data, doi 10.1038/s41597-026-07331-y",
+      "provenance": "Six Chinese centres. 5,165 frames of colorectal subepithelial tumours from 641 patients in five classes, imaged with white light endoscopy and endoscopic ultrasound.",
+      "family": "cad-sel",
+      "label_source": "pathology",
+      "downloads": [
+        {
+          "url": "https://ndownloader.figshare.com/files/62374693",
+          "filename": "CAD-SEL-Dataset.zip",
+          "checksum": "md5:066f6bf41d7e388a2df9d6a5971fd6ea",
+          "size": 11437992919,
+          "index": "sha256:8d7ed343325e8e3f925e2feac483647697d0a0a1d020513b4cfc4f0e32c08733",
+          "extract": true
+        }
+      ],
+      "overlaps": [],
+      "notes": "Only the white light images are used. No split is released, so the benchmark tests on the external centres two to six and trains on centre one, which measures transfer across centres. Images are grouped by lesion folder."
+    },
+    {
+      "key": "ead2020",
+      "name": "EAD2020",
+      "labelled": true,
+      "modality": "endoscopy video frames from several centres and imaging modalities",
+      "licence": "CC BY-NC-SA 4.0 in the archive and CC BY-NC 3.0 on Mendeley Data, non commercial use only",
+      "access": "open",
+      "url": "https://doi.org/10.17632/c7fjbxcgj9.4",
+      "citation": "Ali et al. 2021, Medical Image Analysis, and Ali et al. 2020, Scientific Reports",
+      "provenance": "Training data of the EndoCV2020 artefact detection and segmentation challenge. 2,531 frames with 31,069 boxes of eight artefact classes, and 643 frames with overlapping masks of five artefact classes.",
+      "family": "endocv-oxford",
+      "label_source": "challenge annotators",
+      "downloads": [
+        {
+          "url": "https://data.mendeley.com/public-files/datasets/c7fjbxcgj9/files/ae438e2c-27a6-49a2-a8a9-05ca0113dfac/file_downloaded",
+          "filename": "EndoCV2020_Endoscopy_Artefact_Detection_Segmentation_training_data_v2.zip",
+          "checksum": "",
+          "size": 504211398,
+          "index": "sha256:98bff366e5ef202ae9b270790b5000e7dbfa188670d725bccb80a9caeed4b750",
+          "extract": true
+        }
+      ],
+      "overlaps": [],
+      "notes": "No official partition exists, since the labels of the challenge test data were never released. Frames of one sequence share a group, while single frames carry no patient identifier and form a group each, so that near duplicate frames of one patient may fall into different partitions. Blood is left out of segmentation, since only 169 of the 643 masks annotate it."
+    },
+    {
+      "key": "gastrohun",
+      "name": "GastroHUN",
+      "labelled": true,
+      "modality": "white light gastroscopy stills",
+      "licence": "CC BY 4.0",
+      "access": "open",
+      "url": "https://doi.org/10.6084/m9.figshare.27308133",
+      "citation": "Bravo et al. 2025, Scientific Data, doi 10.1038/s41597-025-04401-5",
+      "provenance": "Hospital Universitario Nacional de Colombia. 8,834 images of 387 patients, each labelled by four gastroenterologists with one of 22 stations of a systematic stomach screening protocol or an other class.",
+      "family": "gastrohun",
+      "label_source": "four expert gastroenterologists",
+      "downloads": [
+        {
+          "url": "https://ndownloader.figshare.com/files/50010117",
+          "filename": "Labeled Images.zip",
+          "checksum": "md5:0d6b48a36a21388123cc5d0231dbd362",
+          "size": 2820524449,
+          "index": "sha256:64a82cff1abfa1debdadcdea1edb0d3c4556590d473ddcf7e5ab76922472ecd5",
+          "extract": true
+        },
+        {
+          "url": "https://ndownloader.figshare.com/files/50007975",
+          "filename": "official_splits.zip",
+          "checksum": "md5:b7aeab61da4b1ef85b749af99ffec9e0",
+          "size": 416311,
+          "index": "sha256:ce0a29e379829c70656a0793753bf7caf6e05f431cdac1ced723b25d98eb2d2f",
+          "extract": true
+        }
+      ],
+      "overlaps": [],
+      "notes": "Labels are the triple agreement column, the class chosen by at least three of the four annotators, and images without such agreement are excluded. The official patient level test partition is used verbatim."
+    },
+    {
+      "key": "gastrovision",
+      "name": "GastroVision",
+      "labelled": true,
+      "modality": "colonoscopy and gastroscopy stills",
+      "licence": "CC BY 4.0",
+      "access": "open",
+      "url": "https://osf.io/84e7f/",
+      "citation": "Jha et al. 2023, ICML workshop",
+      "provenance": "Baerum Hospital, Norway, and Karolinska University Hospital, Sweden. 8,000 images in 27 classes.",
+      "family": "baerum-simula",
+      "label_source": "endoscopist",
+      "downloads": [
+        {
+          "url": "https://osf.io/download/gvx3q/",
+          "filename": "Gastrovision.zip",
+          "checksum": "sha256:583bb7c35871c7e1414f2357aaaee74a724c41367860177ef63eeec74e011800",
+          "size": 1793518442,
+          "index": "sha256:e438e56e21f75b8b33c29092c6c3c5f58f5407ec27687771d43da128969fcc4b",
+          "extract": true
+        },
+        {
+          "url": "https://raw.githubusercontent.com/DebeshJha/GastroVision/abed6397b39db83a25b1d2c14e575b8bbda20707/Split/test.csv",
+          "filename": "gastrovision-test.csv",
+          "checksum": "sha256:d8004c1970068d1451d1338cd4e785786ea3fc7a652a4f68edeae9561ea4f2d1",
+          "size": null,
+          "index": "",
+          "extract": false
+        }
+      ],
+      "overlaps": [
+        {
+          "dataset": "hyperkvasir-unlabeled",
+          "kind": "duplicate",
+          "evidence": "https://arxiv.org/pdf/2307.08140",
+          "note": "relabeled subset",
+          "name": "HyperKvasir unlabeled images"
+        },
+        {
+          "dataset": "kvasir-instrument",
+          "kind": "duplicate",
+          "evidence": "byte identical archive members by CRC32 and size, find-those-polyps audit 2026-11-05",
+          "note": "1 identical images",
+          "name": ""
+        }
+      ],
+      "notes": "The official split of the authors, published on GitHub (DebeshJha/GastroVision abed639) rather than in the archive, covers the 22 classes evaluated in the paper and leaves out five rare ones. The benchmark adopts its test partition verbatim. Each image forms its own group, since no patient identifiers are released. File names repeat across class folders for different images, so the official lists are matched by folder and name."
+    },
+    {
+      "key": "hyperkvasir-labeled",
+      "name": "HyperKvasir labeled images",
+      "labelled": true,
+      "modality": "colonoscopy and gastroscopy stills",
+      "licence": "CC BY 4.0 (competitions and commercial use need permission)",
+      "access": "open",
+      "url": "https://osf.io/mh9sj/",
+      "citation": "Borgli et al. 2020, Scientific Data 7, 283",
+      "provenance": "Baerum Hospital, Vestre Viken, Norway, 2008 to 2016, Olympus and Pentax endoscopes. 10,662 images in 23 classes, official two fold split.",
+      "family": "baerum-simula",
+      "label_source": "endoscopist",
+      "downloads": [
+        {
+          "url": "https://datasets.simula.no/downloads/hyper-kvasir/hyper-kvasir-labeled-images.zip",
+          "filename": "hyper-kvasir-labeled-images.zip",
+          "checksum": "",
+          "size": 3928814344,
+          "index": "sha256:e6f598305c19c6b5f35558040a91f8bd6da6e054cec9b8b87f2c1ee464e140e0",
+          "extract": true
+        },
+        {
+          "url": "https://raw.githubusercontent.com/simula/hyper-kvasir/21cc366e78c0cb4e180a26a0e441d6c0d5171da9/official_splits/2_fold_split.csv",
+          "filename": "2_fold_split.csv",
+          "checksum": "sha256:e9bc264da8dd4ce5ebd6654080eb9ec8a00fd28c3d03a75a2c80b1eb5a096c06",
+          "size": null,
+          "index": "",
+          "extract": false
+        }
+      ],
+      "overlaps": [
+        {
+          "dataset": "hyperkvasir-unlabeled",
+          "kind": "same_source",
+          "evidence": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7455694/",
+          "note": "",
+          "name": "HyperKvasir unlabeled images"
+        },
+        {
+          "dataset": "hyperkvasir-videos",
+          "kind": "same_source",
+          "evidence": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7455694/",
+          "note": "",
+          "name": "HyperKvasir videos"
+        }
+      ],
+      "notes": "The official two fold split assigns every image to fold 0 or 1. The benchmark tests on fold 1, as the split file defines it, and draws validation from fold 0. No patient or video identifiers are released, so each image is its own group and near duplicate frames of one examination may fall on both sides of the split."
+    },
+    {
+      "key": "kvasir-capsule",
+      "name": "Kvasir-Capsule",
+      "labelled": true,
+      "modality": "small bowel capsule video frames",
+      "licence": "CC BY 4.0 (commercial use needs permission)",
+      "access": "open",
+      "url": "https://osf.io/dv2ag/",
+      "citation": "Smedsrud et al. 2021, Scientific Data 8, 142",
+      "provenance": "Baerum Hospital, Norway, 2016 to 2018, Olympus EC-S10. 117 videos, 47,238 labeled frames.",
+      "family": "baerum-capsule",
+      "label_source": "endoscopist",
+      "downloads": [
+        {
+          "url": "https://datasets.simula.no/downloads/kvasir-capsule/kvasir-capsule-labeled-images.zip",
+          "filename": "kvasir-capsule-labeled-images.zip",
+          "checksum": "",
+          "size": 546316156,
+          "index": "sha256:e360871a0a8e13dd7b7278f2b555d04fd221737b49fa48cc4ffc47f9414afde6",
+          "extract": true
+        },
+        {
+          "url": "https://raw.githubusercontent.com/simula/kvasir-capsule/553601dc316fef82f39c952e28f60aaad66039e2/official_splits/split_0.csv",
+          "filename": "split_0.csv",
+          "checksum": "sha256:fc7ed45cb061a378403c1b31375345462c90408960ee555727f7c00f8c3c0b3d",
+          "size": null,
+          "index": "",
+          "extract": false
+        },
+        {
+          "url": "https://raw.githubusercontent.com/simula/kvasir-capsule/553601dc316fef82f39c952e28f60aaad66039e2/official_splits/split_1.csv",
+          "filename": "split_1.csv",
+          "checksum": "sha256:5757b5ac99bdba4642edc2fde7eb2e1dbb2e0392b591b6866ec837720508134a",
+          "size": null,
+          "index": "",
+          "extract": false
+        },
+        {
+          "url": "https://osf.io/download/kzc8w/",
+          "filename": "metadata.csv",
+          "checksum": "sha256:480373e840c48d7cad45aede92bdc8fa5a7c0064e6b22470d38af9f2032642f5",
+          "size": 4050677,
+          "index": "",
+          "extract": false
+        }
+      ],
+      "overlaps": [
+        {
+          "dataset": "kvasir-capsule-unlabeled",
+          "kind": "same_patients",
+          "evidence": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8160146/",
+          "note": "",
+          "name": "Kvasir-Capsule unlabeled frames"
+        },
+        {
+          "dataset": "hyperkvasir-unlabeled",
+          "kind": "same_source",
+          "evidence": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8160146/",
+          "note": "same hospital, different modality",
+          "name": "HyperKvasir unlabeled images"
+        }
+      ],
+      "notes": "The archive nests one tarball per class, which is streamed and unpacked whole when first used. The official two fold split covers eleven classes, and the benchmark tests on split_1. Frames are grouped by the video identifier in their names, but seven videos occur in both official folds, so the official test partition is not patient disjoint from training. Frames of the videos shared with the official test fold are excluded from training and validation. Angiectasia, Blood, Lymphangiectasia and Ulcer occur in too few videos to appear in validation as well as training, so selection on validation does not see them. The metadata table on OSF adds one axis aligned box to 4,235 finding frames of 21 videos. The detection task keeps the seven box classes present in both official folds, and fresh blood, lymphangiectasia and ulcer come from too few videos to appear in its validation partition."
+    },
+    {
+      "key": "kvasir-instrument",
+      "name": "Kvasir-Instrument",
+      "labelled": true,
+      "modality": "colonoscopy and gastroscopy stills",
+      "licence": "CC BY 4.0 on OSF, research and education only per the Simula page",
+      "access": "open",
+      "url": "https://datasets.simula.no/kvasir-instrument/",
+      "citation": "Jha et al. 2021, MMM, doi 10.1007/978-3-030-67835-7_19",
+      "provenance": "Baerum Hospital, Vestre Viken, Norway, 2008 to 2016, Olympus and Pentax endoscopes. 590 frames with tools.",
+      "family": "baerum-simula",
+      "label_source": "expert annotators",
+      "downloads": [
+        {
+          "url": "https://datasets.simula.no/downloads/kvasir-instrument.zip",
+          "filename": "kvasir-instrument.zip",
+          "checksum": "",
+          "size": 169489844,
+          "index": "sha256:24ac0c9a1b1a070bf6ee88d241ff0a8af854edc7569d68ea9677c43652b7e76e",
+          "extract": true
+        }
+      ],
+      "overlaps": [
+        {
+          "dataset": "hyperkvasir-unlabeled",
+          "kind": "duplicate",
+          "evidence": "https://ar5iv.labs.arxiv.org/html/2011.08065",
+          "note": "",
+          "name": "HyperKvasir unlabeled images"
+        },
+        {
+          "dataset": "kvasir-seg",
+          "kind": "duplicate",
+          "evidence": "https://ar5iv.labs.arxiv.org/html/2011.08065",
+          "note": "",
+          "name": ""
+        },
+        {
+          "dataset": "kvasir-v2",
+          "kind": "duplicate",
+          "evidence": "byte identical archive members by CRC32 and size, find-those-polyps audit 2026-11-05",
+          "note": "6 identical images",
+          "name": ""
+        },
+        {
+          "dataset": "hyperkvasir-labeled",
+          "kind": "duplicate",
+          "evidence": "byte identical archive members by CRC32 and size, find-those-polyps audit 2026-11-05",
+          "note": "1 identical images",
+          "name": ""
+        }
+      ],
+      "notes": "Images and masks are nested tarballs, unpacked whole when first used. The official test list of 118 images is used verbatim, and each image is its own group."
+    },
+    {
+      "key": "kvasir-seg",
+      "name": "Kvasir-SEG",
+      "labelled": true,
+      "modality": "white light colonoscopy stills",
+      "licence": "research and education only",
+      "access": "open",
+      "url": "https://datasets.simula.no/kvasir-seg/",
+      "citation": "Jha et al. 2020, MMM",
+      "provenance": "Baerum Hospital, Vestre Viken, Norway, 2008 to 2016, Olympus and Pentax endoscopes. 1,000 polyp images with masks, the polyp class of Kvasir v2.",
+      "family": "baerum-simula",
+      "label_source": "expert annotators",
+      "downloads": [
+        {
+          "url": "https://datasets.simula.no/downloads/kvasir-seg.zip",
+          "filename": "kvasir-seg.zip",
+          "checksum": "sha256:03b30e21d584e04facf49397a2576738fd626815771afbbf788f74a7153478f7",
+          "size": 46227172,
+          "index": "sha256:b98b6d5b6ca987750c4c713a37322fcfe469fd6aa16fdc8a7117bc70edd0df98",
+          "extract": true
+        }
+      ],
+      "overlaps": [
+        {
+          "dataset": "hyperkvasir-labeled",
+          "kind": "duplicate",
+          "evidence": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7455694/",
+          "note": "HyperKvasir segmented images follow Kvasir-SEG",
+          "name": ""
+        },
+        {
+          "dataset": "hyperkvasir-unlabeled",
+          "kind": "same_source",
+          "evidence": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7455694/",
+          "note": "",
+          "name": "HyperKvasir unlabeled images"
+        },
+        {
+          "dataset": "hyperkvasir-videos",
+          "kind": "same_source",
+          "evidence": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7455694/",
+          "note": "",
+          "name": "HyperKvasir videos"
+        },
+        {
+          "dataset": "kvasir-sessile",
+          "kind": "duplicate",
+          "evidence": "https://github.com/DebeshJha/Kvasir-SEG",
+          "note": "strict subset",
+          "name": "Kvasir-Sessile"
+        }
+      ],
+      "notes": "The PraNet split (Fan et al. 2020) tests on 100 images, but its file list is only distributed inside archives that also carry data under a separate agreement. The benchmark therefore holds out a seeded fifth of the images. Without patient identifiers each image is its own group. The checksum was computed by the benchmark at registration, since none is published."
+    },
+    {
+      "key": "kvasir-v2",
+      "name": "Kvasir v2",
+      "labelled": true,
+      "modality": "colonoscopy and gastroscopy stills",
+      "licence": "research and education only, commercial use needs permission",
+      "access": "open",
+      "url": "https://datasets.simula.no/kvasir/",
+      "citation": "Pogorelov et al. 2017, MMSys, doi 10.1145/3083187.3083212",
+      "provenance": "Vestre Viken Health Trust, Norway. 8,000 images in 8 balanced classes.",
+      "family": "baerum-simula",
+      "label_source": "endoscopists",
+      "downloads": [
+        {
+          "url": "https://datasets.simula.no/downloads/kvasir/kvasir-dataset-v2.zip",
+          "filename": "kvasir-dataset-v2.zip",
+          "checksum": "",
+          "size": 2489312085,
+          "index": "sha256:34b217ad797bae229635e1d850844b6af413696feadb38c63cfb8b2a308b7f40",
+          "extract": true
+        }
+      ],
+      "overlaps": [
+        {
+          "dataset": "hyperkvasir-unlabeled",
+          "kind": "same_source",
+          "evidence": "https://doi.org/10.1038/s41597-020-00622-y",
+          "note": "",
+          "name": "HyperKvasir unlabeled images"
+        },
+        {
+          "dataset": "kvasir-seg",
+          "kind": "duplicate",
+          "evidence": "byte identical archive members by CRC32 and size, find-those-polyps audit 2026-11-05",
+          "note": "14 identical images",
+          "name": ""
+        },
+        {
+          "dataset": "hyperkvasir-labeled",
+          "kind": "duplicate",
+          "evidence": "byte identical archive members by CRC32 and size, find-those-polyps audit 2026-11-05",
+          "note": "14 identical images",
+          "name": ""
+        }
+      ],
+      "notes": "No official split is released. The benchmark holds out a stratified fifth of the images, each image forming its own group."
+    },
+    {
+      "key": "limuc",
+      "name": "LIMUC",
+      "labelled": true,
+      "modality": "white light colonoscopy stills",
+      "licence": "CC BY 4.0",
+      "access": "open",
+      "url": "https://zenodo.org/records/5827695",
+      "citation": "Polat et al., LIMUC dataset, Zenodo 2022",
+      "provenance": "Marmara University, Istanbul, Turkiye, December 2011 to July 2019. 11,276 images, 564 patients, 1,043 colonoscopies.",
+      "family": "limuc-marmara",
+      "label_source": "two raters and an adjudicator",
+      "downloads": [
+        {
+          "url": "https://zenodo.org/records/5827695/files/patient_based_classified_images.zip?download=1",
+          "filename": "patient_based_classified_images.zip",
+          "checksum": "md5:6d99c6b4f9b9bf3e210964d16439de42",
+          "size": 1925339722,
+          "index": "sha256:2aedefc3a4d9b9ebfb69c5280c9da16861cb4ae5e63a4a895de4a038e18e5df8",
+          "extract": true
+        },
+        {
+          "url": "https://zenodo.org/records/5827695/files/test_set.zip?download=1",
+          "filename": "test_set.zip",
+          "checksum": "md5:bdd42cff6307ce5d2ebcc3faf31c2d2a",
+          "size": 286765740,
+          "index": "sha256:5138d7a52c535e3e394ead732322d3436b70f8eff87be1fba88fb94116c72316",
+          "extract": true
+        }
+      ],
+      "overlaps": [],
+      "notes": "Official test set of 1,686 images. Train and validation are split by patient. The archive files 10 byte identical images under two different Mayo scores (for instance UC_patient_130_20 under Mayo 2 and Mayo 3). These contradictory images are excluded, which leaves 1,682 test images."
+    },
+    {
+      "key": "nerthus",
+      "name": "Nerthus",
+      "labelled": true,
+      "modality": "colonoscopy video frames",
+      "licence": "no licence stated, released by Simula for research",
+      "access": "open",
+      "url": "https://datasets.simula.no/nerthus/",
+      "citation": "Pogorelov et al. 2017, MMSys",
+      "provenance": "Baerum Hospital, Vestre Viken, Norway, 2008 to 2016, Olympus and Pentax endoscopes. 21 videos, 5,525 frames with Boston bowel preparation scores.",
+      "family": "baerum-simula",
+      "label_source": "endoscopist",
+      "downloads": [
+        {
+          "url": "https://datasets.simula.no/downloads/nerthus/nerthus.zip",
+          "filename": "nerthus.zip",
+          "checksum": "",
+          "size": 250304693,
+          "index": "sha256:5b347099505126b65ede057d774fbb5d7ca70f0e2513fdbf56cd1c7d470223f5",
+          "extract": true
+        }
+      ],
+      "overlaps": [
+        {
+          "dataset": "hyperkvasir-unlabeled",
+          "kind": "same_source",
+          "evidence": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7455694/",
+          "note": "",
+          "name": "HyperKvasir unlabeled images"
+        }
+      ],
+      "notes": "Frames are named bowel_<video>_score_<score>-<n>_<frame>, and every video carries one Boston bowel preparation score. Splits group frames by video, so the test partition holds only a few of the 21 videos and scores vary accordingly. Only two videos carry score 0, so validation has none while training and test have one each."
+    },
+    {
+      "key": "polypdb",
+      "name": "PolypDB",
+      "labelled": true,
+      "modality": "WLI, NBI, LCI, BLI and FICE stills",
+      "licence": "research and education use per the authors, no formal licence on OSF",
+      "access": "open",
+      "url": "https://osf.io/pr7ms/",
+      "citation": "Jha et al. 2024, arXiv 2409.00045",
+      "provenance": "Baerum (Norway), Karolinska (Sweden) and Hanoi (Vietnam). 3,934 images with masks.",
+      "family": "baerum-simula",
+      "label_source": "expert annotators",
+      "downloads": [
+        {
+          "url": "https://osf.io/download/jg32z/",
+          "filename": "PolypDB.zip",
+          "checksum": "sha256:93a4ef4bd49011db97b40ba2830058ce8ef155d997269111db45a80eb9d4c147",
+          "size": 1392073356,
+          "index": "sha256:316d87d9ffac26d519f94bc293cd69377c398d40a14c2d775dbbf93f0842557d",
+          "extract": true
+        },
+        {
+          "url": "https://raw.githubusercontent.com/DebeshJha/PolypDB/d2006bfd80f80c83b015e4ae697f1f659ea5b04d/dataset-split/Modality-Wise/WLI/test.csv",
+          "filename": "polypdb-WLI-test.csv",
+          "checksum": "sha256:fb325c0a05fbe6853b3e8833e365efd6c8d240c18046b5212292b038ee1e1aea",
+          "size": null,
+          "index": "",
+          "extract": false
+        },
+        {
+          "url": "https://raw.githubusercontent.com/DebeshJha/PolypDB/d2006bfd80f80c83b015e4ae697f1f659ea5b04d/dataset-split/Modality-Wise/NBI/test.csv",
+          "filename": "polypdb-NBI-test.csv",
+          "checksum": "sha256:4c1283ea68ea0184ffdaa27c0f36a4dd34c210fe1d10b0807b76a7c6ee1b7a2b",
+          "size": null,
+          "index": "",
+          "extract": false
+        },
+        {
+          "url": "https://raw.githubusercontent.com/DebeshJha/PolypDB/d2006bfd80f80c83b015e4ae697f1f659ea5b04d/dataset-split/Modality-Wise/BLI/test.csv",
+          "filename": "polypdb-BLI-test.csv",
+          "checksum": "sha256:9e1a48cbed67cd9870e92153a4de21b5e09fea941d6abd2da4b123ab8e481ede",
+          "size": null,
+          "index": "",
+          "extract": false
+        },
+        {
+          "url": "https://raw.githubusercontent.com/DebeshJha/PolypDB/d2006bfd80f80c83b015e4ae697f1f659ea5b04d/dataset-split/Modality-Wise/LCI/test.csv",
+          "filename": "polypdb-LCI-test.csv",
+          "checksum": "sha256:857651a939e64868a5add3db2321dcb53e88a1455f12e7485babce23666401f9",
+          "size": null,
+          "index": "",
+          "extract": false
+        },
+        {
+          "url": "https://raw.githubusercontent.com/DebeshJha/PolypDB/d2006bfd80f80c83b015e4ae697f1f659ea5b04d/dataset-split/Modality-Wise/FICE/test.csv",
+          "filename": "polypdb-FICE-test.csv",
+          "checksum": "sha256:e4eacd6b3d4eb6af64d7b456743d89a7b5086c641799c52a0d200ad101b25752",
+          "size": null,
+          "index": "",
+          "extract": false
+        }
+      ],
+      "overlaps": [
+        {
+          "dataset": "hyperkvasir-unlabeled",
+          "kind": "duplicate",
+          "evidence": "https://arxiv.org/html/2409.00045v2",
+          "note": "all 2,588 WLI and 136 NBI images of centre C1",
+          "name": "HyperKvasir unlabeled images"
+        },
+        {
+          "dataset": "bkai-igh-neopolyp",
+          "kind": "duplicate",
+          "evidence": "https://arxiv.org/html/2409.00045v2",
+          "note": "centre C3, pending hash confirmation",
+          "name": "BKAI-IGH NeoPolyp-Small"
+        },
+        {
+          "dataset": "gastrovision",
+          "kind": "same_source",
+          "evidence": "https://arxiv.org/html/2409.00045v2",
+          "note": "Karolinska images",
+          "name": ""
+        }
+      ],
+      "notes": "Tasks follow the official modality wise test partitions of the authors' repository. Validation is drawn by the benchmark from the remaining images. Hanoi images are grouped by the patient code in their file names. The BLI, LCI and FICE test partitions hold fewer than ten images, so their scores carry large uncertainty."
+    },
+    {
+      "key": "wcebleedgen",
+      "name": "WCEBleedGen",
+      "labelled": true,
+      "modality": "wireless capsule endoscopy frames",
+      "licence": "CC BY 4.0",
+      "access": "open",
+      "url": "https://doi.org/10.5281/zenodo.10156571",
+      "citation": "Handa et al. 2023, Zenodo, doi 10.5281/zenodo.10156571",
+      "provenance": "1,309 bleeding frames with masks and boxes and 1,309 non bleeding frames, compiled from several sources described only as internet sources, without patient identifiers.",
+      "family": "wcebleedgen",
+      "label_source": "medical experts",
+      "downloads": [
+        {
+          "url": "https://zenodo.org/api/records/10156571/files/WCEBleedGen%20(updated).zip/content",
+          "filename": "WCEBleedGen (updated).zip",
+          "checksum": "md5:da2f7c1add1095679b6c45cba7f106bb",
+          "size": 166027409,
+          "index": "sha256:a1d4aa463c95bf964b7112fe08e9e07dd4b449f784dc6ca48f19aa53b4b51e01",
+          "extract": true
+        }
+      ],
+      "overlaps": [],
+      "notes": "No split or patient identifiers are released, so each frame is its own group and near duplicate frames may cross the benchmark split. Its sources are not documented, so overlap with other capsule datasets cannot be excluded."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "cls/cad-sel",
+      "description": "Five classes of colorectal subepithelial lesions in white light images, external centres.",
+      "dataset": "cad-sel",
+      "kind": "classification",
+      "classes": [
+        "Leiomyoma",
+        "Lipoma",
+        "NET_G1",
+        "NET_G2",
+        "NonNeoplasm"
+      ],
+      "primary_metric": "mcc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "folders",
+      "loader_options": {
+        "root": "Images",
+        "classes": [
+          [
+            "Leiomyoma"
+          ],
+          [
+            "Lipoma"
+          ],
+          [
+            "NET_G1"
+          ],
+          [
+            "NET_G2"
+          ],
+          [
+            "NonNeoplasm"
+          ]
+        ],
+        "depth": 2,
+        "include": "/WLE-Set/",
+        "id_mode": "path",
+        "group": "^(.+)/[^/]+$",
+        "official_test": {
+          "match": "^Center-[2-6]/",
+          "source": "external centres 2 to 6 of CAD-SEL (benchmark protocol)"
+        }
+      },
+      "splits": "cad-sel.json",
+      "splits_sha256": "027cf5d159e7469ce97e0f601a882da68f32d63b0a478218d6919d584af6de2d"
+    },
+    {
+      "id": "cls/gastrohun",
+      "description": "Stomach station of a systematic screening protocol, 22 stations and an other class.",
+      "dataset": "gastrohun",
+      "kind": "classification",
+      "classes": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "L1",
+        "L2",
+        "L3",
+        "L4",
+        "L5",
+        "L6",
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "P5",
+        "P6",
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "OTHERCLASS"
+      ],
+      "primary_metric": "mcc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "table",
+      "loader_options": {
+        "tables": [
+          "image_classification.csv"
+        ],
+        "key": "filename",
+        "label": "Triple agreement",
+        "classes": [
+          [
+            "A1"
+          ],
+          [
+            "A2"
+          ],
+          [
+            "A3"
+          ],
+          [
+            "A4"
+          ],
+          [
+            "A5"
+          ],
+          [
+            "A6"
+          ],
+          [
+            "L1"
+          ],
+          [
+            "L2"
+          ],
+          [
+            "L3"
+          ],
+          [
+            "L4"
+          ],
+          [
+            "L5"
+          ],
+          [
+            "L6"
+          ],
+          [
+            "P1"
+          ],
+          [
+            "P2"
+          ],
+          [
+            "P3"
+          ],
+          [
+            "P4"
+          ],
+          [
+            "P5"
+          ],
+          [
+            "P6"
+          ],
+          [
+            "G1"
+          ],
+          [
+            "G2"
+          ],
+          [
+            "G3"
+          ],
+          [
+            "G4"
+          ],
+          [
+            "OTHERCLASS"
+          ]
+        ],
+        "group_column": "num patient",
+        "official_test": {
+          "file": "image_classification.csv",
+          "name": "filename",
+          "column": "set_type",
+          "value": "Test",
+          "source": "official GastroHUN patient level test split (Bravo et al. 2025)"
+        }
+      },
+      "splits": "gastrohun.json",
+      "splits_sha256": "caac2fab1c8f0466fe61ea3b4a730ac3ca8a21e8e7b062f632fcba8d45a6653b"
+    },
+    {
+      "id": "cls/gastrovision",
+      "description": "Twenty two anatomical landmarks, findings and interventions of GI endoscopy.",
+      "dataset": "gastrovision",
+      "kind": "classification",
+      "classes": [
+        "Accessory tools",
+        "Barrett's esophagus",
+        "Blood in lumen",
+        "Cecum",
+        "Colon diverticula",
+        "Colon polyps",
+        "Colorectal cancer",
+        "Duodenal bulb",
+        "Dyed-lifted-polyps",
+        "Dyed-resection-margins",
+        "Esophagitis",
+        "Gastric polyps",
+        "Gastroesophageal_junction_normal z-line",
+        "Ileocecal valve",
+        "Mucosal inflammation large bowel",
+        "Normal esophagus",
+        "Normal mucosa and vascular pattern in the large bowel",
+        "Normal stomach",
+        "Pylorus",
+        "Resected polyps",
+        "Retroflex rectum",
+        "Small bowel_terminal ileum"
+      ],
+      "primary_metric": "mcc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "folders",
+      "loader_options": {
+        "root": "Gastrovision",
+        "classes": [
+          [
+            "Accessory tools"
+          ],
+          [
+            "Barrett's esophagus"
+          ],
+          [
+            "Blood in lumen"
+          ],
+          [
+            "Cecum"
+          ],
+          [
+            "Colon diverticula"
+          ],
+          [
+            "Colon polyps"
+          ],
+          [
+            "Colorectal cancer"
+          ],
+          [
+            "Duodenal bulb"
+          ],
+          [
+            "Dyed-lifted-polyps"
+          ],
+          [
+            "Dyed-resection-margins"
+          ],
+          [
+            "Esophagitis"
+          ],
+          [
+            "Gastric polyps"
+          ],
+          [
+            "Gastroesophageal_junction_normal z-line"
+          ],
+          [
+            "Ileocecal valve"
+          ],
+          [
+            "Mucosal inflammation large bowel"
+          ],
+          [
+            "Normal esophagus"
+          ],
+          [
+            "Normal mucosa and vascular pattern in the large bowel"
+          ],
+          [
+            "Normal stomach"
+          ],
+          [
+            "Pylorus"
+          ],
+          [
+            "Resected polyps"
+          ],
+          [
+            "Retroflex rectum"
+          ],
+          [
+            "Small bowel_terminal ileum"
+          ]
+        ],
+        "official_test": {
+          "file": "gastrovision-test.csv",
+          "name": "Filename",
+          "folder": "Class",
+          "source": "official GastroVision test split (Jha et al. 2023, DebeshJha/GastroVision abed639)"
+        }
+      },
+      "splits": "gastrovision.json",
+      "splits_sha256": "d837adc6546afc69903d6278e46a6dd6d75d8c8b2ec2ae32de37aa2b10996edf"
+    },
+    {
+      "id": "cls/hyperkvasir",
+      "description": "Twenty three findings, landmarks and quality classes of GI endoscopy images.",
+      "dataset": "hyperkvasir-labeled",
+      "kind": "classification",
+      "classes": [
+        "cecum",
+        "ileum",
+        "retroflex-rectum",
+        "hemorrhoids",
+        "polyps",
+        "ulcerative-colitis-grade-0-1",
+        "ulcerative-colitis-grade-1",
+        "ulcerative-colitis-grade-1-2",
+        "ulcerative-colitis-grade-2",
+        "ulcerative-colitis-grade-2-3",
+        "ulcerative-colitis-grade-3",
+        "bbps-0-1",
+        "bbps-2-3",
+        "impacted-stool",
+        "dyed-lifted-polyps",
+        "dyed-resection-margins",
+        "pylorus",
+        "retroflex-stomach",
+        "z-line",
+        "barretts",
+        "barretts-short-segment",
+        "esophagitis-a",
+        "esophagitis-b-d"
+      ],
+      "primary_metric": "mcc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "folders",
+      "loader_options": {
+        "root": "labeled-images",
+        "classes": [
+          [
+            "cecum"
+          ],
+          [
+            "ileum"
+          ],
+          [
+            "retroflex-rectum"
+          ],
+          [
+            "hemorrhoids"
+          ],
+          [
+            "polyps"
+          ],
+          [
+            "ulcerative-colitis-grade-0-1"
+          ],
+          [
+            "ulcerative-colitis-grade-1"
+          ],
+          [
+            "ulcerative-colitis-grade-1-2"
+          ],
+          [
+            "ulcerative-colitis-grade-2"
+          ],
+          [
+            "ulcerative-colitis-grade-2-3"
+          ],
+          [
+            "ulcerative-colitis-grade-3"
+          ],
+          [
+            "bbps-0-1"
+          ],
+          [
+            "bbps-2-3"
+          ],
+          [
+            "impacted-stool"
+          ],
+          [
+            "dyed-lifted-polyps"
+          ],
+          [
+            "dyed-resection-margins"
+          ],
+          [
+            "pylorus"
+          ],
+          [
+            "retroflex-stomach"
+          ],
+          [
+            "z-line"
+          ],
+          [
+            "barretts"
+          ],
+          [
+            "barretts-short-segment"
+          ],
+          [
+            "esophagitis-a"
+          ],
+          [
+            "esophagitis-b-d"
+          ]
+        ],
+        "official_test": {
+          "file": "2_fold_split.csv",
+          "delimiter": ";",
+          "name": "file-name",
+          "column": "split-index",
+          "value": "1",
+          "source": "official HyperKvasir two fold split, fold 1 (Borgli et al. 2020, simula/hyper-kvasir 21cc366)"
+        }
+      },
+      "splits": "hyperkvasir.json",
+      "splits_sha256": "6a6b6d7454dcb44f1fd321e32e43aea8da834685f998936ca5ae2263c1210849"
+    },
+    {
+      "id": "cls/hyperkvasir-bbps",
+      "description": "Adequate (BBPS 2 or 3) against inadequate (BBPS 0 or 1) bowel preparation.",
+      "dataset": "hyperkvasir-labeled",
+      "kind": "classification",
+      "classes": [
+        "inadequate",
+        "adequate"
+      ],
+      "primary_metric": "auroc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "folders",
+      "loader_options": {
+        "root": "labeled-images",
+        "classes": [
+          [
+            "bbps-0-1"
+          ],
+          [
+            "bbps-2-3"
+          ]
+        ],
+        "official_test": {
+          "file": "2_fold_split.csv",
+          "delimiter": ";",
+          "name": "file-name",
+          "column": "split-index",
+          "value": "1",
+          "source": "official HyperKvasir two fold split, fold 1 (Borgli et al. 2020, simula/hyper-kvasir 21cc366)"
+        }
+      },
+      "splits": "hyperkvasir-bbps.json",
+      "splits_sha256": "84b69d81cedf92c51c680a4127c07405ead1aafc074571fb8514ac47ef3d0321"
+    },
+    {
+      "id": "cls/hyperkvasir-esophagitis",
+      "description": "Los Angeles grade A against grades B to D oesophagitis.",
+      "dataset": "hyperkvasir-labeled",
+      "kind": "classification",
+      "classes": [
+        "grade A",
+        "grade B to D"
+      ],
+      "primary_metric": "auroc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "folders",
+      "loader_options": {
+        "root": "labeled-images",
+        "classes": [
+          [
+            "esophagitis-a"
+          ],
+          [
+            "esophagitis-b-d"
+          ]
+        ],
+        "official_test": {
+          "file": "2_fold_split.csv",
+          "delimiter": ";",
+          "name": "file-name",
+          "column": "split-index",
+          "value": "1",
+          "source": "official HyperKvasir two fold split, fold 1 (Borgli et al. 2020, simula/hyper-kvasir 21cc366)"
+        }
+      },
+      "splits": "hyperkvasir-esophagitis.json",
+      "splits_sha256": "816cac589e840816c56c93da070fbb46dcb3dd53251a40217f3be6edeac98828"
+    },
+    {
+      "id": "cls/hyperkvasir-landmarks",
+      "description": "Six anatomical landmarks of the upper and lower GI tract.",
+      "dataset": "hyperkvasir-labeled",
+      "kind": "classification",
+      "classes": [
+        "cecum",
+        "ileum",
+        "retroflex-rectum",
+        "pylorus",
+        "retroflex-stomach",
+        "z-line"
+      ],
+      "primary_metric": "mcc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "folders",
+      "loader_options": {
+        "root": "labeled-images",
+        "classes": [
+          [
+            "cecum"
+          ],
+          [
+            "ileum"
+          ],
+          [
+            "retroflex-rectum"
+          ],
+          [
+            "pylorus"
+          ],
+          [
+            "retroflex-stomach"
+          ],
+          [
+            "z-line"
+          ]
+        ],
+        "official_test": {
+          "file": "2_fold_split.csv",
+          "delimiter": ";",
+          "name": "file-name",
+          "column": "split-index",
+          "value": "1",
+          "source": "official HyperKvasir two fold split, fold 1 (Borgli et al. 2020, simula/hyper-kvasir 21cc366)"
+        }
+      },
+      "splits": "hyperkvasir-landmarks.json",
+      "splits_sha256": "740545ac41513f0f64161939b99b769f0397ec10e7930079c498d7ab67c7391d"
+    },
+    {
+      "id": "cls/kvasir-capsule",
+      "description": "Eleven findings and landmarks of small bowel capsule endoscopy frames.",
+      "dataset": "kvasir-capsule",
+      "kind": "classification",
+      "classes": [
+        "Angiectasia",
+        "Blood",
+        "Erosion",
+        "Erythematous",
+        "Foreign Bodies",
+        "Ileo-cecal valve",
+        "Lymphangiectasia",
+        "Normal",
+        "Pylorus",
+        "Reduced Mucosal View",
+        "Ulcer"
+      ],
+      "primary_metric": "mcc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "table",
+      "loader_options": {
+        "tables": [
+          "split_0.csv",
+          "split_1.csv"
+        ],
+        "key": "filename",
+        "label": "label",
+        "classes": [
+          [
+            "Angiectasia"
+          ],
+          [
+            "Blood"
+          ],
+          [
+            "Erosion"
+          ],
+          [
+            "Erythematous"
+          ],
+          [
+            "Foreign Bodies"
+          ],
+          [
+            "Ileo-cecal valve"
+          ],
+          [
+            "Lymphangiectasia"
+          ],
+          [
+            "Normal"
+          ],
+          [
+            "Pylorus"
+          ],
+          [
+            "Reduced Mucosal View"
+          ],
+          [
+            "Ulcer"
+          ]
+        ],
+        "root": "labelled_images",
+        "group": "^([0-9a-f]{16})_",
+        "expand": [
+          "labelled_images/angiectasia.tar.gz",
+          "labelled_images/blood_fresh.tar.gz",
+          "labelled_images/erosion.tar.gz",
+          "labelled_images/erythema.tar.gz",
+          "labelled_images/foreign_body.tar.gz",
+          "labelled_images/ileocecal_valve.tar.gz",
+          "labelled_images/lymphangiectasia.tar.gz",
+          "labelled_images/normal_clean_mucosa.tar.gz",
+          "labelled_images/pylorus.tar.gz",
+          "labelled_images/reduced_mucosal_view.tar.gz",
+          "labelled_images/ulcer.tar.gz"
+        ],
+        "official_test": {
+          "file": "split_1.csv",
+          "name": "filename",
+          "source": "official Kvasir-Capsule split_1 (Smedsrud et al. 2021, simula/kvasir-capsule 553601d)"
+        }
+      },
+      "splits": "kvasir-capsule.json",
+      "splits_sha256": "4dc548b610ff7068f11db7c9e24036875e3d44c46661fe94ffe159d38cb2719c"
+    },
+    {
+      "id": "cls/kvasir-v2",
+      "description": "Eight landmark, finding and intervention classes of GI endoscopy images.",
+      "dataset": "kvasir-v2",
+      "kind": "classification",
+      "classes": [
+        "dyed-lifted-polyps",
+        "dyed-resection-margins",
+        "esophagitis",
+        "normal-cecum",
+        "normal-pylorus",
+        "normal-z-line",
+        "polyps",
+        "ulcerative-colitis"
+      ],
+      "primary_metric": "mcc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "folders",
+      "loader_options": {
+        "root": "kvasir-dataset-v2",
+        "classes": [
+          [
+            "dyed-lifted-polyps"
+          ],
+          [
+            "dyed-resection-margins"
+          ],
+          [
+            "esophagitis"
+          ],
+          [
+            "normal-cecum"
+          ],
+          [
+            "normal-pylorus"
+          ],
+          [
+            "normal-z-line"
+          ],
+          [
+            "polyps"
+          ],
+          [
+            "ulcerative-colitis"
+          ]
+        ]
+      },
+      "splits": "kvasir-v2.json",
+      "splits_sha256": "628d87a991c9afa27da6a1f6b4c590cdd9e568595b13344bcfbe7dbd5562b12c"
+    },
+    {
+      "id": "cls/limuc-remission",
+      "description": "Endoscopic remission (Mayo 0 or 1) against active disease.",
+      "dataset": "limuc",
+      "kind": "classification",
+      "classes": [
+        "remission",
+        "active"
+      ],
+      "primary_metric": "auroc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "limuc",
+      "loader_options": {
+        "mapping": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "splits": "limuc.json",
+      "splits_sha256": "dd5450e1ce276f8735e9db9c26d94035b7df9d40ece1b4c33d1a5a3f95f3221e"
+    },
+    {
+      "id": "cls/wcebleedgen",
+      "description": "Bleeding against non bleeding capsule endoscopy frames.",
+      "dataset": "wcebleedgen",
+      "kind": "classification",
+      "classes": [
+        "non-bleeding",
+        "bleeding"
+      ],
+      "primary_metric": "auroc",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "folders",
+      "loader_options": {
+        "root": "WCEBleedGen (updated)",
+        "classes": [
+          [
+            "non-bleeding"
+          ],
+          [
+            "bleeding"
+          ]
+        ],
+        "depth": 2,
+        "include": "/[Ii]mages/",
+        "id_mode": "path"
+      },
+      "splits": "wcebleedgen.json",
+      "splits_sha256": "455e3032d8e9eb6832337d2d89032295da94d3bf0d16d082dcb9c00e9a4b3431"
+    },
+    {
+      "id": "det/ead2020-boxes",
+      "description": "Detection of eight kinds of imaging artefacts in endoscopy frames.",
+      "dataset": "ead2020",
+      "kind": "detection",
+      "classes": [
+        "background",
+        "specularity",
+        "saturation",
+        "artefact",
+        "blur",
+        "contrast",
+        "bubbles",
+        "instrument",
+        "blood"
+      ],
+      "primary_metric": "box_ap50",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "yolo-boxes",
+      "loader_options": {
+        "images": "EndoCV2020_Endoscopy_Artefact_Detection_Segmentation_training_data_v2/allDetection_training/bbox_images",
+        "group": "(1445|Pyl)"
+      },
+      "splits": "ead2020-boxes.json",
+      "splits_sha256": "ea2b3b97064c0c16a1aad9b8d2b3182f46b7a3284186bfed1f711cbd9efebac0"
+    },
+    {
+      "id": "det/kvasir-capsule-boxes",
+      "description": "Detection of seven kinds of small bowel findings in capsule endoscopy frames.",
+      "dataset": "kvasir-capsule",
+      "kind": "detection",
+      "classes": [
+        "background",
+        "angiectasia",
+        "fresh blood",
+        "erosion",
+        "erythema",
+        "foreign body",
+        "lymphangiectasia",
+        "ulcer"
+      ],
+      "primary_metric": "box_ap50",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "table-boxes",
+      "loader_options": {
+        "table": "metadata.csv",
+        "key": "filename",
+        "label": "finding_class",
+        "box_classes": {
+          "Angiectasia": 1,
+          "Blood - fresh": 2,
+          "Erosion": 3,
+          "Erythema": 4,
+          "Foreign Body": 5,
+          "Lymphangiectasia": 6,
+          "Ulcer": 7
+        },
+        "x": [
+          "x1",
+          "x2",
+          "x3",
+          "x4"
+        ],
+        "y": [
+          "y1",
+          "y2",
+          "y3",
+          "y4"
+        ],
+        "root": "labelled_images",
+        "group_column": "video_id",
+        "delimiter": ";",
+        "expand": [
+          "labelled_images/angiectasia.tar.gz",
+          "labelled_images/blood_fresh.tar.gz",
+          "labelled_images/erosion.tar.gz",
+          "labelled_images/erythema.tar.gz",
+          "labelled_images/foreign_body.tar.gz",
+          "labelled_images/lymphangiectasia.tar.gz",
+          "labelled_images/ulcer.tar.gz"
+        ],
+        "official_test": {
+          "file": "split_1.csv",
+          "name": "filename",
+          "source": "official Kvasir-Capsule split_1 (Smedsrud et al. 2021, simula/kvasir-capsule 553601d)"
+        }
+      },
+      "splits": "kvasir-capsule-boxes.json",
+      "splits_sha256": "efae083f2c9125849f6e5f42caeff7273f87f84f67451f68b9ba6aea7e9278a6"
+    },
+    {
+      "id": "det/kvasir-instrument-boxes",
+      "description": "Detection of diagnostic and therapeutic tools in GI endoscopy images, with boxes of the mask regions.",
+      "dataset": "kvasir-instrument",
+      "kind": "detection",
+      "classes": [
+        "background",
+        "instrument"
+      ],
+      "primary_metric": "box_ap50",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "mask-boxes",
+      "loader_options": {
+        "images": "kvasir-instrument/images",
+        "masks": "kvasir-instrument/masks",
+        "expand": [
+          "kvasir-instrument/images.tar.gz",
+          "kvasir-instrument/masks.tar.gz"
+        ],
+        "official_test": {
+          "file": "kvasir-instrument/test.txt",
+          "header": false,
+          "source": "official Kvasir-Instrument test list (Jha et al. 2021)"
+        }
+      },
+      "splits": "kvasir-instrument.json",
+      "splits_sha256": "7eccbcf8538e10049b37345c273265520e984b965f97c2e4314c4da2142eb888"
+    },
+    {
+      "id": "det/kvasir-seg-boxes",
+      "description": "Polyp detection in colonoscopy images, with boxes of the mask regions.",
+      "dataset": "kvasir-seg",
+      "kind": "detection",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "box_ap50",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "kvasir-seg-boxes",
+      "loader_options": {},
+      "splits": "kvasir-seg.json",
+      "splits_sha256": "0b8034c52e2bcac72041ba758838a30d662e6830d31d0df9094a49f5b56a6865"
+    },
+    {
+      "id": "det/polypdb-bli-boxes",
+      "description": "Polyp detection in BLI colonoscopy images from three centres, with boxes of the mask regions.",
+      "dataset": "polypdb",
+      "kind": "detection",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "box_ap50",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "mask-boxes",
+      "loader_options": {
+        "images": "PolypDB/PolypDB_modality_wise/BLI/images",
+        "masks": "PolypDB/PolypDB_modality_wise/BLI/masks",
+        "group": "^(.+_BN\\d+)_\\d+$",
+        "official_test": {
+          "file": "polypdb-BLI-test.csv",
+          "name": "ImagePath",
+          "source": "official PolypDB modality wise test split (Jha et al. 2024, DebeshJha/PolypDB d2006bf)"
+        }
+      },
+      "splits": "polypdb-bli.json",
+      "splits_sha256": "b2ee7c80974fb63f924543aa124eebe0635fed66767c28673c50b4331e9b21e6"
+    },
+    {
+      "id": "det/polypdb-fice-boxes",
+      "description": "Polyp detection in FICE colonoscopy images from three centres, with boxes of the mask regions.",
+      "dataset": "polypdb",
+      "kind": "detection",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "box_ap50",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "mask-boxes",
+      "loader_options": {
+        "images": "PolypDB/PolypDB_modality_wise/FICE/images",
+        "masks": "PolypDB/PolypDB_modality_wise/FICE/masks",
+        "group": "^(.+_BN\\d+)_\\d+$",
+        "official_test": {
+          "file": "polypdb-FICE-test.csv",
+          "name": "ImagePath",
+          "source": "official PolypDB modality wise test split (Jha et al. 2024, DebeshJha/PolypDB d2006bf)"
+        }
+      },
+      "splits": "polypdb-fice.json",
+      "splits_sha256": "7c6e8433fd25d5db91012e8ce5887d767b0bd24d3aa707d06c17e18254a14c87"
+    },
+    {
+      "id": "det/polypdb-lci-boxes",
+      "description": "Polyp detection in LCI colonoscopy images from three centres, with boxes of the mask regions.",
+      "dataset": "polypdb",
+      "kind": "detection",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "box_ap50",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "mask-boxes",
+      "loader_options": {
+        "images": "PolypDB/PolypDB_modality_wise/LCI/images",
+        "masks": "PolypDB/PolypDB_modality_wise/LCI/masks",
+        "group": "^(.+_BN\\d+)_\\d+$",
+        "official_test": {
+          "file": "polypdb-LCI-test.csv",
+          "name": "ImagePath",
+          "source": "official PolypDB modality wise test split (Jha et al. 2024, DebeshJha/PolypDB d2006bf)"
+        }
+      },
+      "splits": "polypdb-lci.json",
+      "splits_sha256": "e2ef3fbf3e1491cc43b88f481e561ed70e400d8f8f1a7beaf5fce7de17016394"
+    },
+    {
+      "id": "det/polypdb-nbi-boxes",
+      "description": "Polyp detection in NBI colonoscopy images from three centres, with boxes of the mask regions.",
+      "dataset": "polypdb",
+      "kind": "detection",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "box_ap50",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "mask-boxes",
+      "loader_options": {
+        "images": "PolypDB/PolypDB_modality_wise/NBI/images",
+        "masks": "PolypDB/PolypDB_modality_wise/NBI/masks",
+        "group": "^(.+_BN\\d+)_\\d+$",
+        "official_test": {
+          "file": "polypdb-NBI-test.csv",
+          "name": "ImagePath",
+          "source": "official PolypDB modality wise test split (Jha et al. 2024, DebeshJha/PolypDB d2006bf)"
+        }
+      },
+      "splits": "polypdb-nbi.json",
+      "splits_sha256": "7c33a856705d7e3c4721d0782eb512002eb44f338569d891f34cf4adc5814eca"
+    },
+    {
+      "id": "det/polypdb-wli-boxes",
+      "description": "Polyp detection in WLI colonoscopy images from three centres, with boxes of the mask regions.",
+      "dataset": "polypdb",
+      "kind": "detection",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "box_ap50",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "mask-boxes",
+      "loader_options": {
+        "images": "PolypDB/PolypDB_modality_wise/WLI/images",
+        "masks": "PolypDB/PolypDB_modality_wise/WLI/masks",
+        "group": "^(.+_BN\\d+)_\\d+$",
+        "official_test": {
+          "file": "polypdb-WLI-test.csv",
+          "name": "ImagePath",
+          "source": "official PolypDB modality wise test split (Jha et al. 2024, DebeshJha/PolypDB d2006bf)"
+        }
+      },
+      "splits": "polypdb-wli.json",
+      "splits_sha256": "32ead875c50ad724978a671c46b4d89a2d7c3d8cc4806fa0971c987400887332"
+    },
+    {
+      "id": "det/wcebleedgen-boxes",
+      "description": "Detection of bleeding regions in capsule endoscopy frames with the published boxes, frames without bleeding included.",
+      "dataset": "wcebleedgen",
+      "kind": "detection",
+      "classes": [
+        "background",
+        "bleeding"
+      ],
+      "primary_metric": "box_ap50",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "voc-boxes",
+      "loader_options": {
+        "root": "WCEBleedGen (updated)",
+        "classes": [
+          [
+            "non-bleeding"
+          ],
+          [
+            "bleeding"
+          ]
+        ],
+        "depth": 2,
+        "include": "/[Ii]mages/",
+        "id_mode": "path",
+        "annotation": [
+          "/Images/(img- \\(\\d+\\))\\.png$",
+          "/Bounding boxes/XML/\\1.xml"
+        ],
+        "box_classes": {
+          "bleeding": 1
+        }
+      },
+      "splits": "wcebleedgen.json",
+      "splits_sha256": "455e3032d8e9eb6832337d2d89032295da94d3bf0d16d082dcb9c00e9a4b3431"
+    },
+    {
+      "id": "ordinal/ai-koda-ov",
+      "description": "Korea Canada cleanliness obscuration of view score from 0 to 3 of capsule frames.",
+      "dataset": "ai-koda",
+      "kind": "ordinal",
+      "classes": [
+        "OV 0",
+        "OV 1",
+        "OV 2",
+        "OV 3"
+      ],
+      "primary_metric": "quadratic_kappa",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "table",
+      "loader_options": {
+        "tables": [
+          "Dataset/labels/labels1.csv"
+        ],
+        "key": "Filenames",
+        "one_hot": [
+          [
+            "OVscore0"
+          ],
+          [
+            "OVscore1"
+          ],
+          [
+            "OVscore2"
+          ],
+          [
+            "OVscore3"
+          ]
+        ],
+        "root": "Dataset/images",
+        "group": "_([^_]+)___"
+      },
+      "splits": "ai-koda-ov.json",
+      "splits_sha256": "aa297e6a9dcc6a650847a682e19dcb60152d57301b45a8b343707dec3f73f7d6"
+    },
+    {
+      "id": "ordinal/ai-koda-vm",
+      "description": "Korea Canada cleanliness visualized mucosa score from 0 to 3 of capsule frames.",
+      "dataset": "ai-koda",
+      "kind": "ordinal",
+      "classes": [
+        "VM 0",
+        "VM 1",
+        "VM 2",
+        "VM 3"
+      ],
+      "primary_metric": "quadratic_kappa",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "table",
+      "loader_options": {
+        "tables": [
+          "Dataset/labels/labels1.csv"
+        ],
+        "key": "Filenames",
+        "one_hot": [
+          [
+            "VMscore0"
+          ],
+          [
+            "VMscore1"
+          ],
+          [
+            "VMscore2"
+          ],
+          [
+            "VMscore3"
+          ]
+        ],
+        "root": "Dataset/images",
+        "group": "_([^_]+)___"
+      },
+      "splits": "ai-koda-vm.json",
+      "splits_sha256": "74fe514bbec7de7bcea92ddb1326e829ab2521042edbaa7649b0bf8266e5ce35"
+    },
+    {
+      "id": "ordinal/hyperkvasir-uc",
+      "description": "Ulcerative colitis grade from 0 to 3 in half grade steps.",
+      "dataset": "hyperkvasir-labeled",
+      "kind": "ordinal",
+      "classes": [
+        "0-1",
+        "1",
+        "1-2",
+        "2",
+        "2-3",
+        "3"
+      ],
+      "primary_metric": "quadratic_kappa",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "folders",
+      "loader_options": {
+        "root": "labeled-images",
+        "classes": [
+          [
+            "ulcerative-colitis-grade-0-1"
+          ],
+          [
+            "ulcerative-colitis-grade-1"
+          ],
+          [
+            "ulcerative-colitis-grade-1-2"
+          ],
+          [
+            "ulcerative-colitis-grade-2"
+          ],
+          [
+            "ulcerative-colitis-grade-2-3"
+          ],
+          [
+            "ulcerative-colitis-grade-3"
+          ]
+        ],
+        "official_test": {
+          "file": "2_fold_split.csv",
+          "delimiter": ";",
+          "name": "file-name",
+          "column": "split-index",
+          "value": "1",
+          "source": "official HyperKvasir two fold split, fold 1 (Borgli et al. 2020, simula/hyper-kvasir 21cc366)"
+        }
+      },
+      "splits": "hyperkvasir-uc.json",
+      "splits_sha256": "695a4a985425aee299f1b12050298b5dce96fc3b48f3f5d3e9290f6c1cffbbc3"
+    },
+    {
+      "id": "ordinal/limuc-mayo",
+      "description": "Mayo endoscopic score of ulcerative colitis, 0 to 3.",
+      "dataset": "limuc",
+      "kind": "ordinal",
+      "classes": [
+        "mayo-0",
+        "mayo-1",
+        "mayo-2",
+        "mayo-3"
+      ],
+      "primary_metric": "quadratic_kappa",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "limuc",
+      "loader_options": {},
+      "splits": "limuc.json",
+      "splits_sha256": "dd5450e1ce276f8735e9db9c26d94035b7df9d40ece1b4c33d1a5a3f95f3221e"
+    },
+    {
+      "id": "ordinal/nerthus",
+      "description": "Boston bowel preparation scale score from 0 to 3 of colonoscopy frames.",
+      "dataset": "nerthus",
+      "kind": "ordinal",
+      "classes": [
+        "BBPS 0",
+        "BBPS 1",
+        "BBPS 2",
+        "BBPS 3"
+      ],
+      "primary_metric": "quadratic_kappa",
+      "budgets": [
+        "full",
+        "frac:0.1",
+        "frac:0.01",
+        "shots:10",
+        "shots:5",
+        "shots:1"
+      ],
+      "loader": "folders",
+      "loader_options": {
+        "root": "nerthus-dataset-frames",
+        "classes": [
+          [
+            "0"
+          ],
+          [
+            "1"
+          ],
+          [
+            "2"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "group": "^(bowel_\\d+)_"
+      },
+      "splits": "nerthus.json",
+      "splits_sha256": "cd9a7f095237b3274593e304cf4cc3d151af0dd8a7d219020c30ef2397d022ed"
+    },
+    {
+      "id": "seg/ead2020-masks",
+      "description": "Multilabel segmentation of five kinds of overlapping imaging artefacts in endoscopy frames.",
+      "dataset": "ead2020",
+      "kind": "multilabel_segmentation",
+      "classes": [
+        "instrument",
+        "specularity",
+        "artefact",
+        "bubbles",
+        "saturation"
+      ],
+      "primary_metric": "dice",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "layered-masks",
+      "loader_options": {
+        "sources": [
+          [
+            "EndoCV2020_Endoscopy_Artefact_Detection_Segmentation_training_data_v2/EAD2020_dataType_framesOnly/segmentation/images_ead2020",
+            "EndoCV2020_Endoscopy_Artefact_Detection_Segmentation_training_data_v2/EAD2020_dataType_framesOnly/segmentation/masks_ead2020"
+          ],
+          [
+            "EndoCV2020_Endoscopy_Artefact_Detection_Segmentation_training_data_v2/EAD2020-Phase-II-Detection_Segmentation-99Frames/originalImages",
+            "EndoCV2020_Endoscopy_Artefact_Detection_Segmentation_training_data_v2/EAD2020-Phase-II-Detection_Segmentation-99Frames/semanticMasks"
+          ],
+          [
+            "EndoCV2020_Endoscopy_Artefact_Detection_Segmentation_training_data_v2/EAD2020-Phase-II_dataType_sequence/SemanticSegmentation_Sequence/1445-01",
+            "EndoCV2020_Endoscopy_Artefact_Detection_Segmentation_training_data_v2/EAD2020-Phase-II_dataType_sequence/SemanticSegmentation_Sequence/1445-01_masks"
+          ],
+          [
+            "EndoCV2020_Endoscopy_Artefact_Detection_Segmentation_training_data_v2/EAD2020-Phase-II_dataType_sequence/SemanticSegmentation_Sequence/1445-02",
+            "EndoCV2020_Endoscopy_Artefact_Detection_Segmentation_training_data_v2/EAD2020-Phase-II_dataType_sequence/SemanticSegmentation_Sequence/1445-02_masks"
+          ]
+        ],
+        "layers": 5,
+        "mask_name": [
+          "_mask$",
+          ""
+        ],
+        "group": "(1445)"
+      },
+      "splits": "ead2020-masks.json",
+      "splits_sha256": "91910f68ec0149f6ef5ddfdf840f0792f9fb7edfdbe7b7171ef3de8d1ded6065"
+    },
+    {
+      "id": "seg/kvasir-instrument",
+      "description": "Binary segmentation of diagnostic and therapeutic tools in GI endoscopy images.",
+      "dataset": "kvasir-instrument",
+      "kind": "segmentation",
+      "classes": [
+        "background",
+        "instrument"
+      ],
+      "primary_metric": "dice",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "masks",
+      "loader_options": {
+        "images": "kvasir-instrument/images",
+        "masks": "kvasir-instrument/masks",
+        "expand": [
+          "kvasir-instrument/images.tar.gz",
+          "kvasir-instrument/masks.tar.gz"
+        ],
+        "official_test": {
+          "file": "kvasir-instrument/test.txt",
+          "header": false,
+          "source": "official Kvasir-Instrument test list (Jha et al. 2021)"
+        }
+      },
+      "splits": "kvasir-instrument.json",
+      "splits_sha256": "7eccbcf8538e10049b37345c273265520e984b965f97c2e4314c4da2142eb888"
+    },
+    {
+      "id": "seg/kvasir-seg",
+      "description": "Binary polyp segmentation of colonoscopy images.",
+      "dataset": "kvasir-seg",
+      "kind": "segmentation",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "dice",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "kvasir-seg",
+      "loader_options": {},
+      "splits": "kvasir-seg.json",
+      "splits_sha256": "0b8034c52e2bcac72041ba758838a30d662e6830d31d0df9094a49f5b56a6865"
+    },
+    {
+      "id": "seg/polypdb-bli",
+      "description": "Binary polyp segmentation of BLI colonoscopy images from three centres.",
+      "dataset": "polypdb",
+      "kind": "segmentation",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "dice",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "masks",
+      "loader_options": {
+        "images": "PolypDB/PolypDB_modality_wise/BLI/images",
+        "masks": "PolypDB/PolypDB_modality_wise/BLI/masks",
+        "group": "^(.+_BN\\d+)_\\d+$",
+        "official_test": {
+          "file": "polypdb-BLI-test.csv",
+          "name": "ImagePath",
+          "source": "official PolypDB modality wise test split (Jha et al. 2024, DebeshJha/PolypDB d2006bf)"
+        }
+      },
+      "splits": "polypdb-bli.json",
+      "splits_sha256": "b2ee7c80974fb63f924543aa124eebe0635fed66767c28673c50b4331e9b21e6"
+    },
+    {
+      "id": "seg/polypdb-fice",
+      "description": "Binary polyp segmentation of FICE colonoscopy images from three centres.",
+      "dataset": "polypdb",
+      "kind": "segmentation",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "dice",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "masks",
+      "loader_options": {
+        "images": "PolypDB/PolypDB_modality_wise/FICE/images",
+        "masks": "PolypDB/PolypDB_modality_wise/FICE/masks",
+        "group": "^(.+_BN\\d+)_\\d+$",
+        "official_test": {
+          "file": "polypdb-FICE-test.csv",
+          "name": "ImagePath",
+          "source": "official PolypDB modality wise test split (Jha et al. 2024, DebeshJha/PolypDB d2006bf)"
+        }
+      },
+      "splits": "polypdb-fice.json",
+      "splits_sha256": "7c6e8433fd25d5db91012e8ce5887d767b0bd24d3aa707d06c17e18254a14c87"
+    },
+    {
+      "id": "seg/polypdb-lci",
+      "description": "Binary polyp segmentation of LCI colonoscopy images from three centres.",
+      "dataset": "polypdb",
+      "kind": "segmentation",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "dice",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "masks",
+      "loader_options": {
+        "images": "PolypDB/PolypDB_modality_wise/LCI/images",
+        "masks": "PolypDB/PolypDB_modality_wise/LCI/masks",
+        "group": "^(.+_BN\\d+)_\\d+$",
+        "official_test": {
+          "file": "polypdb-LCI-test.csv",
+          "name": "ImagePath",
+          "source": "official PolypDB modality wise test split (Jha et al. 2024, DebeshJha/PolypDB d2006bf)"
+        }
+      },
+      "splits": "polypdb-lci.json",
+      "splits_sha256": "e2ef3fbf3e1491cc43b88f481e561ed70e400d8f8f1a7beaf5fce7de17016394"
+    },
+    {
+      "id": "seg/polypdb-nbi",
+      "description": "Binary polyp segmentation of NBI colonoscopy images from three centres.",
+      "dataset": "polypdb",
+      "kind": "segmentation",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "dice",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "masks",
+      "loader_options": {
+        "images": "PolypDB/PolypDB_modality_wise/NBI/images",
+        "masks": "PolypDB/PolypDB_modality_wise/NBI/masks",
+        "group": "^(.+_BN\\d+)_\\d+$",
+        "official_test": {
+          "file": "polypdb-NBI-test.csv",
+          "name": "ImagePath",
+          "source": "official PolypDB modality wise test split (Jha et al. 2024, DebeshJha/PolypDB d2006bf)"
+        }
+      },
+      "splits": "polypdb-nbi.json",
+      "splits_sha256": "7c33a856705d7e3c4721d0782eb512002eb44f338569d891f34cf4adc5814eca"
+    },
+    {
+      "id": "seg/polypdb-wli",
+      "description": "Binary polyp segmentation of WLI colonoscopy images from three centres.",
+      "dataset": "polypdb",
+      "kind": "segmentation",
+      "classes": [
+        "background",
+        "polyp"
+      ],
+      "primary_metric": "dice",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "masks",
+      "loader_options": {
+        "images": "PolypDB/PolypDB_modality_wise/WLI/images",
+        "masks": "PolypDB/PolypDB_modality_wise/WLI/masks",
+        "group": "^(.+_BN\\d+)_\\d+$",
+        "official_test": {
+          "file": "polypdb-WLI-test.csv",
+          "name": "ImagePath",
+          "source": "official PolypDB modality wise test split (Jha et al. 2024, DebeshJha/PolypDB d2006bf)"
+        }
+      },
+      "splits": "polypdb-wli.json",
+      "splits_sha256": "32ead875c50ad724978a671c46b4d89a2d7c3d8cc4806fa0971c987400887332"
+    },
+    {
+      "id": "seg/wcebleedgen-mask",
+      "description": "Binary segmentation of bleeding regions in capsule endoscopy frames.",
+      "dataset": "wcebleedgen",
+      "kind": "segmentation",
+      "classes": [
+        "background",
+        "bleeding"
+      ],
+      "primary_metric": "dice",
+      "budgets": [
+        "full",
+        "n:100",
+        "n:50",
+        "n:10"
+      ],
+      "loader": "masks",
+      "loader_options": {
+        "images": "WCEBleedGen (updated)/bleeding/Images",
+        "masks": "WCEBleedGen (updated)/bleeding/Annotations",
+        "mask_name": [
+          "^img-",
+          "ann-"
+        ]
+      },
+      "splits": "wcebleedgen-seg.json",
+      "splits_sha256": "a7ba5ca94415b0e18b63afce70a25dae4f6810383c129c84cf5abdefeeea8117"
+    }
+  ]
+}
