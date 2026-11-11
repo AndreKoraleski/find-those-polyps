@@ -23,21 +23,24 @@ def read_rgb(data: bytes) -> NDArray[np.uint8]:
         return np.array(image.convert("RGB"), dtype=np.uint8)
 
 
-def read_mask(data: bytes, threshold: int = 128) -> NDArray[np.int64]:
+def read_mask(data: bytes, threshold: int = 128) -> NDArray[np.uint8]:
     """Decode a binary mask from its grey levels.
+
+    Masks are kept in one byte per pixel, since a task holds the masks of all its images at their
+    native resolution.
 
     Args:
         data: Encoded mask image, converted to grey levels before thresholding.
         threshold: Lowest grey level, between 0 and 255, mapped to one.
 
     Returns:
-        Array of shape `(H, W)` and dtype int64 holding zeros and ones.
+        Array of shape `(H, W)` and dtype uint8 holding zeros and ones.
     """
     with Image.open(io.BytesIO(data)) as image:
-        return (np.asarray(image.convert("L")) >= threshold).astype(np.int64)
+        return (np.asarray(image.convert("L")) >= threshold).astype(np.uint8)
 
 
-def read_layers(data: bytes, layers: int, threshold: int = 128) -> NDArray[np.int64]:
+def read_layers(data: bytes, layers: int, threshold: int = 128) -> NDArray[np.uint8]:
     """Decode a multi page image into one binary mask per page.
 
     Args:
@@ -46,14 +49,14 @@ def read_layers(data: bytes, layers: int, threshold: int = 128) -> NDArray[np.in
         threshold: Lowest grey level, between 0 and 255, mapped to one.
 
     Returns:
-        Array of shape `(layers, H, W)` and dtype int64 holding zeros and ones.
+        Array of shape `(layers, H, W)` and dtype uint8 holding zeros and ones.
     """
     with Image.open(io.BytesIO(data)) as image:
         pages = []
         for index in range(min(layers, getattr(image, "n_frames", 1))):
             image.seek(index)
             pages.append(np.asarray(image.convert("L")) >= threshold)
-    stack = np.zeros((layers, *pages[0].shape), dtype=np.int64)
+    stack = np.zeros((layers, *pages[0].shape), dtype=np.uint8)
     stack[: len(pages)] = pages
     return stack
 

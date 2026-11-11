@@ -250,7 +250,7 @@ def score_run(
     if spec.kind in MASKED:
         if isinstance(predictions, np.ndarray):
             raise TypeError("segmentation expects an iterable of probability maps")
-        masks = [np.asarray(t, dtype=np.int64) for t in test.targets]
+        masks = [np.asarray(t) for t in test.targets]
         maps = cast(Iterable[NDArray[np.float32]], predictions)
         multilabel = spec.kind is TaskKind.MULTILABEL_SEGMENTATION
         records = pd.DataFrame(per_image(maps, masks, n_classes, multilabel=multilabel))

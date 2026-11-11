@@ -75,8 +75,10 @@ def _validate_image(value: object) -> NDArray[np.uint8]:
     return value
 
 
-def _validate_target(value: object) -> int | NDArray[np.int64] | NDArray[np.float64]:
-    """Normalize a target to a Python integer, an int64 array or a float64 box table.
+def _validate_target(
+    value: object,
+) -> int | NDArray[np.int64] | NDArray[np.uint8] | NDArray[np.float64]:
+    """Normalize a target to a Python integer, an integer array or a float64 box table.
 
     Args:
         value: Candidate target. Integers other than booleans are class indices, integer arrays
@@ -84,8 +86,10 @@ def _validate_target(value: object) -> int | NDArray[np.int64] | NDArray[np.floa
             floating arrays of shape `(N, 5)` are box tables.
 
     Returns:
-        The class index as `int`, or the array cast to int64 or float64 without copying when
-        possible.
+        The class index as `int`, a multi hot vector in int64, a mask or stack of masks in uint8
+        when its values lie in `[0, 255]` and in int64 otherwise, or a box table in float64. Arrays
+        are cast without copying when possible. Masks keep one byte per pixel, since a task holds
+        the masks of all its images at their native resolution.
 
     Raises:
         ValueError: If `value` matches none of the accepted forms.
@@ -97,6 +101,9 @@ def _validate_target(value: object) -> int | NDArray[np.int64] | NDArray[np.floa
         and value.ndim in (1, 2, 3)
         and np.issubdtype(value.dtype, np.integer)
     ):
+        small = value.ndim > 1 and (value.size == 0 or (value.min() >= 0 and value.max() <= 255))
+        if small:
+            return value.astype(np.uint8, copy=False)
         return value.astype(np.int64, copy=False)
     if (
         isinstance(value, np.ndarray)
@@ -111,7 +118,10 @@ def _validate_target(value: object) -> int | NDArray[np.int64] | NDArray[np.floa
 
 
 Image = Annotated[NDArray[np.uint8], PlainValidator(_validate_image)]
-Target = Annotated[int | NDArray[np.int64] | NDArray[np.float64], PlainValidator(_validate_target)]
+Target = Annotated[
+    int | NDArray[np.int64] | NDArray[np.uint8] | NDArray[np.float64],
+    PlainValidator(_validate_target),
+]
 
 
 class Sample(BaseModel):
