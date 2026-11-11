@@ -1,0 +1,110 @@
+[project]
+name = "find-those-polyps"
+version = "0.1.0"
+description = "A benchmark of unsupervised and self-supervised representation learning for colonoscopy polyp imaging."
+readme = "README.md"
+authors = [
+    { name = "Andre Vinicius Moura Koraleski", email = "andre.andre2@discente.ufg.br" },
+    { name = "Gustavo Novack Viana Lima", email = "novack@discente.ufg.br" },
+    { name = "Henrick de Souza Silva", email = "henrick.henrick@discente.ufg.br" },
+    { name = "Lucas Fabricio Ozorio", email = "ozorio@discente.ufg.br" },
+    { name = "Rian de Souza Santos", email = "rian.souza@discente.ufg.br" },
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.5.4",
+    "openpyxl>=3.1.5",
+    "pandas>=3.1.1",
+    "pillow>=13.0.0",
+    "pydantic>=2.14.3",
+    "scikit-learn>=1.9.1",
+    "scipy>=1.18.1",
+    "structlog>=26.1.0",
+    "torch>=2.14.1",
+    "torchvision>=0.29.1",
+    "tqdm>=4.70.1",
+]
+
+[project.scripts]
+find-those-polyps = "find_those_polyps.cli:main"
+polyps-data = "find_those_polyps.data.__main__:main"
+polyps-evaluate = "find_those_polyps.evaluation.__main__:main"
+polyps-registry = "find_those_polyps.registry.__main__:main"
+polyps-split = "find_those_polyps.registry.build:main"
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.4.0",
+    "mypy>=2.4.1",
+    "pandas-stubs>=3.1.0.261029",
+    "pre-commit>=4.7.0",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.4",
+    "scipy-stubs>=1.18.1.1",
+    "types-openpyxl>=3.1.5.20261017",
+    "types-tqdm>=4.70.0.20261106",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "UP",       # pyupgrade
+    "B",        # flake8-bugbear
+    "A",        # flake8-builtins
+    "C4",       # flake8-comprehensions
+    "SIM",      # flake8-simplify
+    "PTH",      # flake8-use-pathlib
+    "RUF",      # ruff-specific
+    "D",        # pydocstyle
+]
+ignore = ["D105", "D107"]  # magic methods and constructors are documented by their class
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["find_those_polyps"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+mypy_path = ["src", "tests"]
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*", "torchvision.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["find_those_polyps.evaluation.protocols.segmentation"]
+disallow_untyped_calls = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config", "-ra", "--import-mode=importlib"]
+pythonpath = ["tests"]

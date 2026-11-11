@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "find-those-polyps"
+abstract: >-
+  A benchmark of unsupervised and self-supervised representation learning
+  methods for colonoscopy polyp imaging.
+type: software
+authors:
+  - family-names: Koraleski
+    given-names: Andre Vinicius Moura
+    email: andre.andre2@discente.ufg.br
+    affiliation: &ufg "Instituto de Informática, Universidade Federal de Goiás"
+  - family-names: Lima
+    given-names: Gustavo Novack Viana
+    email: novack@discente.ufg.br
+    affiliation: *ufg
+  - family-names: Silva
+    given-names: Henrick de Souza
+    email: henrick.henrick@discente.ufg.br
+    affiliation: *ufg
+  - family-names: Ozorio
+    given-names: Lucas Fabricio
+    email: ozorio@discente.ufg.br
+    affiliation: *ufg
+  - family-names: Santos
+    given-names: Rian de Souza
+    email: rian.souza@discente.ufg.br
+    affiliation: *ufg
+repository-code: "https://github.com/AndreKoraleski/find-those-polyps"
+license: MIT
+version: 0.1.0

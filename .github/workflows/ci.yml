@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.13", "3.14"]
+    env:
+      # Commands run in the environment installed below instead of syncing the lockfile.
+      UV_NO_SYNC: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # The lockfile pins CUDA builds of PyTorch, which CI never uses. The lockfile is checked,
+      # and the environment is installed with the CPU builds instead.
+      - run: uv lock --check
+
+      - run: uv venv --python ${{ matrix.python }}
+
+      - run: uv pip install --no-sources --torch-backend cpu -e . --group dev
+
+      - run: uv run pre-commit run --all-files
+
+      - run: uv run pytest
