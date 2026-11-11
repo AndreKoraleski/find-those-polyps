@@ -4,11 +4,13 @@ from sklearn.metrics import adjusted_mutual_info_score, matthews_corrcoef, roc_a
 
 from find_those_polyps.metrics.bootstrap import (
     averaged,
+    detection_statistic,
     interval,
     mean_statistic,
     prediction_statistic,
 )
 from find_those_polyps.metrics.classification import multilabel, ranked_examples, varying_labels
+from find_those_polyps.metrics.detection import match, summarize
 from find_those_polyps.tasks import TaskKind
 
 
@@ -95,3 +97,42 @@ def test_averaged_statistics_share_resamples_and_markers() -> None:
     both = averaged([first, second])
     assert both(np.array([0, 3])) == pytest.approx((1.5 + 4.5) / 2)
     assert both.__dict__ == {"slow": False, "centred": True}
+
+
+def _detections(seed: int, n: int, n_classes: int) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    rng = np.random.default_rng(seed)
+    predictions, targets = [], []
+    for _ in range(n):
+        boxes = []
+        for _ in range(rng.integers(0, 4)):
+            x, y = rng.uniform(0, 0.6, size=2)
+            boxes.append([rng.integers(1, n_classes), x, y, x + 0.3, y + 0.3])
+        target = np.array(boxes).reshape(-1, 5)
+        rows = []
+        for box in target:
+            jitter = rng.normal(0, 0.05, size=4)
+            rows.append([box[0], rng.uniform(), *(box[1:] + jitter)])
+        for _ in range(rng.integers(0, 5)):
+            x, y = rng.uniform(0, 0.7, size=2)
+            rows.append([rng.integers(1, n_classes), rng.uniform(), x, y, x + 0.2, y + 0.2])
+        predictions.append(np.array(rows).reshape(-1, 6))
+        targets.append(target)
+    return predictions, targets
+
+
+@pytest.mark.parametrize("metric", ["box_ap50", "box_ap75", "box_map", "box_ar100"])
+def test_weighted_detection_resamples_match_pooled_images(metric: str) -> None:
+    predictions, targets = _detections(0, 60, 4)
+    statistic = detection_statistic(metric, predictions, targets, 4)
+    matched = [match(p, t, 4) for p, t in zip(predictions, targets, strict=True)]
+    rng = np.random.default_rng(1)
+    for _ in range(30):
+        index = rng.integers(0, 60, size=60)
+        expected = summarize([matched[i] for i in index], 4)[metric]
+        assert statistic(index) == pytest.approx(expected, abs=1e-12, nan_ok=True)
+    assert statistic(np.arange(60)) == pytest.approx(summarize(matched, 4)[metric])
+    assert np.isnan(
+        detection_statistic(metric, [np.zeros((0, 6))], [np.zeros((0, 5))], 4)(
+            np.zeros(1, dtype=np.intp)
+        )
+    )

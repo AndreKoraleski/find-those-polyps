@@ -110,24 +110,31 @@ def match(prediction: NDArray[np.float64], target: NDArray[np.float64], n_classe
     return Matches(classes, prediction[:, 1], hits, counts)
 
 
-def _curve(hits: NDArray[np.bool_], n_targets: int) -> tuple[float, float]:
+def curve(
+    hits: NDArray[np.bool_], n_targets: float, weights: NDArray[np.float64] | None = None
+) -> tuple[float, float]:
     """Interpolated average precision and maximal recall of ranked detections of one class.
 
     The precision envelope, the running maximum of the precision from the lowest score up, is
     sampled at the first rank reaching each of the `RECALL_LEVELS`, and counts zero at the levels
-    that no rank reaches.
+    that no rank reaches. A weight counts a detection as that many identical detections, as when
+    its image is drawn several times by a bootstrap resample. Identical detections share a score,
+    and the curve through them reaches the same envelope at the same recall levels as one weighted
+    detection, so both give the same values.
 
     Args:
         hits: Whether each detection, in decreasing order of score, is a true positive.
-        n_targets: Number of targets of the class, positive.
+        n_targets: Number of targets of the class, positive, weighted like the detections.
+        weights: Positive multiplicity of every detection, one each when `None`.
 
     Returns:
         Average precision and maximal recall, both in `[0, 1]` and both zero without detections.
     """
     if not len(hits):
         return 0.0, 0.0
-    true = np.cumsum(hits)
-    precision = true / np.arange(1, len(hits) + 1)
+    counts = np.ones(len(hits)) if weights is None else weights
+    true = np.cumsum(hits * counts)
+    precision = true / np.cumsum(counts)
     recall = true / n_targets
     envelope = np.maximum.accumulate(precision[::-1])[::-1]
     index = np.searchsorted(recall, RECALL_LEVELS, side="left")
@@ -164,7 +171,7 @@ def summarize(matches: Sequence[Matches], n_classes: int) -> dict[str, float]:
         chosen = np.flatnonzero(classes == cls)
         ranked = chosen[np.argsort(-scores[chosen], kind="stable")]
         for column in range(len(IOU_THRESHOLDS)):
-            precision[row, column], recall[row, column] = _curve(
+            precision[row, column], recall[row, column] = curve(
                 hits[ranked, column], int(targets[cls])
             )
     return {

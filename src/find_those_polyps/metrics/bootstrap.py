@@ -34,7 +34,7 @@ from find_those_polyps.metrics.classification import (
     ranked_examples,
     varying_labels,
 )
-from find_those_polyps.metrics.detection import match, summarize
+from find_those_polyps.metrics.detection import IOU_THRESHOLDS, curve, match
 from find_those_polyps.tasks.schema import Target, TaskKind
 
 RESAMPLES = 1000
@@ -97,10 +97,14 @@ def detection_statistic(
     targets: Sequence[Target],
     n_classes: int,
 ) -> Statistic:
-    """Resampled detection `metric`, with the detections of every image matched once.
+    """Resampled detection `metric`, with the detections of every image matched and ranked once.
 
-    Matching depends on one image only, so a resample merely pools the matches of its images
-    before the precision recall curves are computed.
+    Matching depends on one image only, and the detections of each class are ranked by score once
+    over all images. A resample then weights every detection by the number of times its image was
+    drawn, which gives the curves of `summarize` on the pooled resampled images without pooling
+    or sorting them again. Only the overlap thresholds that `metric` reads are computed. Detections
+    of different images with exactly equal scores keep the order of their images instead of the
+    order of the draw.
 
     Args:
         metric: Detection metric, one of `DETECTION`.
@@ -115,9 +119,36 @@ def detection_statistic(
         match(p, np.asarray(t, dtype=np.float64).reshape(-1, 5), n_classes)
         for p, t in zip(predictions, targets, strict=True)
     ]
+    columns = {"box_ap50": [0], "box_ap75": [5]}.get(metric, list(range(len(IOU_THRESHOLDS))))
+    counts = np.array([m.targets for m in matched], dtype=np.float64).reshape(-1, n_classes)
+    image = np.repeat(np.arange(len(matched)), [len(m.scores) for m in matched])
+    classes = np.concatenate([m.classes for m in matched]) if matched else np.zeros(0, np.int64)
+    scores = np.concatenate([m.scores for m in matched]) if matched else np.zeros(0)
+    hits = (
+        np.concatenate([m.hits for m in matched])[:, columns]
+        if matched
+        else np.zeros((0, len(columns)), dtype=bool)
+    )
+    ranked = {}
+    for cls in range(1, n_classes):
+        chosen = np.flatnonzero(classes == cls)
+        order = chosen[np.argsort(-scores[chosen], kind="stable")]
+        ranked[cls] = (image[order], hits[order])
 
     def statistic(index: NDArray[np.intp]) -> float:
-        return summarize([matched[i] for i in index], n_classes)[metric]
+        drawn = np.bincount(index, minlength=len(matched)).astype(np.float64)
+        totals = drawn @ counts
+        present = [cls for cls in range(1, n_classes) if totals[cls] > 0]
+        if not present:
+            return float("nan")
+        values = np.zeros((len(present), len(columns), 2))
+        for row, cls in enumerate(present):
+            images, outcomes = ranked[cls]
+            weights = drawn[images]
+            kept = weights > 0
+            for column in range(len(columns)):
+                values[row, column] = curve(outcomes[kept, column], totals[cls], weights[kept])
+        return float(values[..., 1 if metric == "box_ar100" else 0].mean())
 
     return statistic
 
