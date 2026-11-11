@@ -99,6 +99,16 @@ with options mirroring `EvaluationConfig`. Modules in the working directory are 
 uv run polyps-evaluate my_encoder.py:build --pretrained-on hyperkvasir-unlabeled
 ```
 
+Several encoders can be evaluated in one run, by passing a list to `evaluate` or several
+references to the command. Tasks then run one at a time, grouped by dataset, and the images of each
+partition are read once and handed to every encoder, so a streamed dataset is downloaded once
+whatever the number of encoders. Each encoder keeps its own pretraining declaration, task
+selection and feature cache, and all of them must fit on the device together.
+
+```bash
+uv run polyps-evaluate find_those_polyps.baselines:RandomResNet50 find_those_polyps.baselines:ImageNetResNet50
+```
+
 An encoder declares in `pretrained_on` the keys of the datasets and corpora it was pretrained on,
 an empty tuple when it was not pretrained, and the option of the same name adds to it. Every task
 whose dataset is documented to overlap a declared one is excluded, and the leaderboard records the
