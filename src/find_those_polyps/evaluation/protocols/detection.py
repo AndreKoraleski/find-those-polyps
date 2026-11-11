@@ -23,8 +23,11 @@ from torchvision.ops import batched_nms, sigmoid_focal_loss
 from find_those_polyps.evaluation.features import Features
 from find_those_polyps.evaluation.protocols.base import Protocol, better
 from find_those_polyps.evaluation.protocols.segmentation import resident
+from find_those_polyps.logging import get_logger
 from find_those_polyps.metrics import score
 from find_those_polyps.tasks.schema import TaskKind, TaskSpec
+
+log = get_logger(__name__)
 
 _EVAL_BATCH = 32
 _MAX_LOG_DISTANCE = 8.0
@@ -325,6 +328,14 @@ class LinearDetection(Protocol):
                 if better(current[primary], best_score, primary):
                     best_score, stalled = current[primary], 0
                     best_state = {k: v.clone() for k, v in head.state_dict().items()}
+                log.info(
+                    "probe validated",
+                    protocol=self.name,
+                    step=step,
+                    steps=self.steps,
+                    score=round(current[primary], 4),
+                    best=round(best_score, 4),
+                )
                 if stalled >= self.patience and step >= self.min_steps:
                     break
         head.load_state_dict(best_state)

@@ -1,6 +1,6 @@
 """Frozen feature evaluation, metrics and the leaderboard."""
 
-from find_those_polyps.evaluation.features import Features, extract
+from find_those_polyps.evaluation.features import Features, extract, extract_many
 from find_those_polyps.evaluation.leaderboard import Leaderboard, LeaderboardRow
 from find_those_polyps.evaluation.protocols import (
     KNN,
@@ -11,6 +11,7 @@ from find_those_polyps.evaluation.protocols import (
 )
 from find_those_polyps.evaluation.runner import (
     EvaluationConfig,
+    TaskFeatures,
     evaluate,
     evaluate_task,
     select_tasks,
@@ -28,9 +29,11 @@ __all__ = [
     "LinearProbe",
     "LinearSegmentation",
     "Protocol",
+    "TaskFeatures",
     "evaluate",
     "evaluate_task",
     "extract",
+    "extract_many",
     "metric_names",
     "score",
     "select_tasks",

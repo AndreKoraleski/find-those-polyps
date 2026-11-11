@@ -28,6 +28,7 @@ from find_those_polyps.registry import Registry
 from find_those_polyps.tasks import FULL, Budget, Split, Task, TaskKind, TaskSpec, make_split
 from find_those_polyps.tasks.loaders.boxes import mask_boxes
 from find_those_polyps.tasks.loaders.folders import FolderClassification
+from find_those_polyps.tasks.schema import Sample
 
 
 def _config(tmp_path: Path, **fields: object) -> EvaluationConfig:
@@ -365,3 +366,74 @@ def test_rows_record_the_input_size_and_dense_feature_grid(
     knn = resolve_protocols(["knn"])
     (flat, *_) = evaluate_task(Noise(), colour_task, knn, config, 0)
     assert (flat.input_size, flat.feature_grid) == (8, "")
+
+
+class CountingLoader(SquareLoader):
+    """Square loader counting the samples it loads."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.loads = 0
+
+    def load(self, sample_id: str) -> Sample:
+        self.loads += 1
+        return super().load(sample_id)
+
+
+class OtherColour(CountingColour):
+    """Counting mean colour encoder under another name."""
+
+    name = "other-colour"
+    image_size = 16
+
+
+def test_encoders_evaluated_together_read_each_image_once(tmp_path: Path) -> None:
+    loader = CountingLoader(LocalFiles("synthetic", tmp_path))
+    spec = make_spec(
+        id="seg/square",
+        dataset="square",
+        kind=TaskKind.SEGMENTATION,
+        classes=("background", "square"),
+        primary_metric="dice",
+    )
+    task = make_task(loader, spec)
+    protocols = ("knn", "linear_seg")
+    config = _config(tmp_path, protocols=protocols, seeds=1, bootstrap=0)
+    first, second = CountingColour(), OtherColour()
+    rows = evaluate([first, second], config, tasks=[task], registry=Registry(version=0, sha256=""))
+    assert {row.model for row in rows} == {"mean-colour", "other-colour"}
+    assert {(row.model, row.protocol) for row in rows} >= {
+        ("mean-colour", "linear_seg"),
+        ("other-colour", "linear_seg"),
+    }
+    assert loader.loads == len(loader.ids())
+    assert first.seen == second.seen == len(loader.ids())
+    assert "model" in summary(rows).splitlines()[0]
+
+
+def test_encoders_keep_their_own_task_selection(colour_task: Task, tmp_path: Path) -> None:
+    config = _config(tmp_path, protocols=("knn",), seeds=1)
+    first, second = CountingColour(), OtherColour()
+    registry = Registry(version=0, sha256="")
+    evaluate([first, second], config, tasks=[colour_task], registry=registry)
+    again = evaluate([first, second], config, tasks=[colour_task], registry=registry, resume=True)
+    assert again == []
+    with pytest.raises(ValueError, match="distinct names"):
+        evaluate([first, CountingColour()], config, tasks=[colour_task], registry=registry)
+    with pytest.raises(ValueError, match="no encoder"):
+        evaluate([], config, tasks=[colour_task], registry=registry)
+
+
+def test_task_order_groups_tasks_by_dataset() -> None:
+    specs = [
+        make_spec(
+            id=f"cls/{name}",
+            dataset=dataset,
+            kind=TaskKind.CLASSIFICATION,
+            classes=("a", "b"),
+            primary_metric="mcc",
+        )
+        for name, dataset in (("a1", "a"), ("b1", "b"), ("a2", "a"), ("c1", "c"), ("b2", "b"))
+    ]
+    order = [spec.id for spec in runner.task_order(specs)]
+    assert order == ["cls/a1", "cls/a2", "cls/b1", "cls/b2", "cls/c1"]

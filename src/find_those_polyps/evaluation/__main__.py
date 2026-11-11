@@ -1,10 +1,11 @@
-"""Command line evaluation of an encoder built by a factory.
+"""Command line evaluation of one or several encoders built by factories.
 
-The encoder is named as `module:factory`, for instance
+Each encoder is named as `module:factory`, for instance
 `find_those_polyps.baselines:ImageNetResNet50`, or as `path/to/file.py:factory`, and the factory is
-called without arguments. Modules are also searched in the current directory. Selection and
-execution options mirror the fields of `EvaluationConfig`, and datasets absent from the data root
-are streamed from their official hosts unless `--no-stream` is given.
+called without arguments. Modules are also searched in the current directory. Encoders named
+together are evaluated in one pass, which reads the images of each task once for all of them.
+Selection and execution options mirror the fields of `EvaluationConfig`, and datasets absent from
+the data root are streamed from their official hosts unless `--no-stream` is given.
 """
 
 import argparse
@@ -110,7 +111,12 @@ def parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     add = result.add_argument
-    add("encoder", help="module:factory or path/to/file.py:factory returning an Encoder")
+    add(
+        "encoders",
+        nargs="+",
+        metavar="encoder",
+        help="module:factory or path/to/file.py:factory returning an Encoder, one or more",
+    )
     add("--tasks", nargs="+", default=["*"], help="task identifiers or glob patterns, default all")
     add("--exclude-tasks", nargs="+", default=[], help="task identifiers or patterns to skip")
     add("--exclude-datasets", nargs="+", default=[], help="dataset keys to skip")
@@ -149,7 +155,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Parse arguments, evaluate the encoder and return the exit status.
+    """Parse arguments, evaluate the encoders and return the exit status.
 
     With `--dry-run` the selected tasks are listed with the state of their dataset and nothing is
     evaluated. Otherwise the primary scores on the full budget are printed once every task ran.
@@ -163,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     Raises:
         SystemExit: If the arguments are invalid or violate a constraint of `EvaluationConfig`,
             for instance a nonpositive number of seeds, if a protocol, task pattern or dataset key
-            is unknown, or if the encoder cannot be loaded, with status 2.
+            is unknown, or if an encoder cannot be loaded, with status 2.
         EvaluationError: If some tasks failed after the others were recorded.
     """
     command = parser()
@@ -203,10 +209,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{spec.id:32} {state(cards[spec.dataset], config.data_root):16} {spec.kind}")
             print(f"{len(specs)} tasks, protocols {', '.join(config.protocols)}")
             return 0
-        encoder = load_encoder(args.encoder)
+        encoders = [load_encoder(reference) for reference in args.encoders]
+        names = [encoder.card.name for encoder in encoders]
+        if len(set(names)) < len(names):
+            raise ValueError(f"encoders must have distinct names, got {', '.join(names)}")
     except ValueError as error:
         command.error(str(error))
-    rows = evaluate(encoder, config, registry=registry)
+    rows = evaluate(encoders, config, registry=registry)
     print(summary(rows))
     return 0
 
@@ -214,8 +223,9 @@ def main(argv: list[str] | None = None) -> int:
 def summary(rows: list[LeaderboardRow]) -> str:
     """Table of the primary score with its interval for every task and protocol.
 
-    Only rows on the full label budget are listed, sorted by task and protocol. The interval is
-    left blank when a bound is `None` or NaN, as when the bootstrap was disabled.
+    Only rows on the full label budget are listed, sorted by task, protocol and model. A model
+    column is added when the rows hold several models. The interval is left blank when a bound is
+    `None` or NaN, as when the bootstrap was disabled.
 
     Args:
         rows: Leaderboard rows produced by the evaluation.
@@ -223,8 +233,11 @@ def summary(rows: list[LeaderboardRow]) -> str:
     Returns:
         A header line followed by one line per row on the full budget.
     """
-    lines = [f"{'task':32} {'protocol':11} {'metric':16} {'score':>7}  interval"]
-    for row in sorted(rows, key=lambda r: (r.task, r.protocol)):
+    models = {row.model for row in rows}
+    width = max((len(model) for model in models), default=0) if len(models) > 1 else 0
+    model = f"{'model':{width}} " if width else ""
+    lines = [f"{'task':32} {'protocol':11} {model}{'metric':16} {'score':>7}  interval"]
+    for row in sorted(rows, key=lambda r: (r.task, r.protocol, r.model)):
         if row.budget != "full":
             continue
         low, high = row.score_ci_low, row.score_ci_high
@@ -232,7 +245,10 @@ def summary(rows: list[LeaderboardRow]) -> str:
         if low is not None and high is not None and not (math.isnan(low) or math.isnan(high)):
             bounds = f"[{low:.3f}, {high:.3f}]"
         score = f"{row.score:7.3f}"
-        lines.append(f"{row.task:32} {row.protocol:11} {row.primary_metric:16} {score}  {bounds}")
+        name = f"{row.model:{width}} " if width else ""
+        lines.append(
+            f"{row.task:32} {row.protocol:11} {name}{row.primary_metric:16} {score}  {bounds}"
+        )
     return "\n".join(lines)
 
 

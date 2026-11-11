@@ -1,12 +1,13 @@
-"""Evaluation of an encoder on every selected task and protocol.
+"""Evaluation of one or several encoders on every selected task and protocol.
 
 Predictors are fitted on the training partition under each label budget, model selection uses the
 validation partition, and every reported number, aggregated or per image, is measured on the
-canonical test partition.
+canonical test partition. Encoders evaluated together share one pass over the images of each task,
+so that a streamed dataset is downloaded once for all of them.
 """
 
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from difflib import get_close_matches
 from fnmatch import fnmatch
@@ -21,7 +22,7 @@ from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
 from find_those_polyps.data.paths import default_data_root
-from find_those_polyps.evaluation.features import Features, extract
+from find_those_polyps.evaluation.features import Features, extract_many
 from find_those_polyps.evaluation.leaderboard import Leaderboard, LeaderboardRow
 from find_those_polyps.evaluation.protocols import PROTOCOLS, DirectProtocol, Protocol
 from find_those_polyps.evaluation.records import (
@@ -47,7 +48,7 @@ from find_those_polyps.registry.schema import Registry
 from find_those_polyps.registry.store import build_task, load_registry
 from find_those_polyps.tasks.budgets import budget_indices
 from find_those_polyps.tasks.loaders.base import FileLoader
-from find_those_polyps.tasks.schema import FULL, Budget, Split, TaskKind, TaskSpec
+from find_those_polyps.tasks.schema import FULL, Budget, Sample, Split, TaskKind, TaskSpec
 from find_those_polyps.tasks.task import LazySamples, Task
 
 log = get_logger(__name__)
@@ -443,6 +444,179 @@ def _reusable_labels(task: Task) -> dict[str, int] | None:
     return task.loader.labels()
 
 
+def pending_budgets(
+    spec: TaskSpec, protocol: Protocol, done: frozenset[tuple[str, ...]]
+) -> list[Budget]:
+    """Budgets of a protocol on a task that are not yet recorded.
+
+    Direct protocols that are not budgeted run on the full budget only.
+
+    Args:
+        spec: Task whose budgets are listed.
+        protocol: Protocol run on the task.
+        done: Settings to skip, each given as task, task hash, protocol, protocol hash and budget.
+
+    Returns:
+        The budgets still to evaluate, in the order of the task.
+    """
+    fixed = isinstance(protocol, DirectProtocol) and not protocol.budgeted
+    return [
+        budget
+        for budget in ((FULL,) if fixed else spec.budgets)
+        if (spec.id, spec.hash, protocol.name, protocol.hash, str(budget)) not in done
+    ]
+
+
+def applicable(spec: TaskSpec, protocol: Protocol, encoder: Encoder) -> bool:
+    """Whether a protocol applies to a task kind and to the features an encoder provides.
+
+    Args:
+        spec: Task to evaluate.
+        protocol: Protocol to run.
+        encoder: Encoder, which must define dense features for a dense protocol.
+
+    Returns:
+        True when the protocol handles the task kind and the encoder has the features it needs.
+    """
+    return spec.kind in protocol.kinds and (encoder.has_dense or not protocol.dense)
+
+
+def feature_kinds(
+    spec: TaskSpec,
+    protocols: Sequence[Protocol],
+    encoder: Encoder,
+    done: frozenset[tuple[str, ...]],
+) -> frozenset[bool]:
+    """Kinds of features an encoder needs on a task, true standing for dense maps.
+
+    Args:
+        spec: Task to evaluate.
+        protocols: Protocols to run.
+        encoder: Encoder to evaluate.
+        done: Settings already recorded for the encoder, which need no features.
+
+    Returns:
+        The kinds of every applicable protocol with a budget left to evaluate.
+    """
+    return frozenset(
+        protocol.dense
+        for protocol in protocols
+        if applicable(spec, protocol, encoder) and pending_budgets(spec, protocol, done)
+    )
+
+
+class TaskFeatures:
+    """Features of one task for several encoders, extracted together when first requested.
+
+    A request for the features of one partition and kind encodes them for every encoder that
+    needs that kind, reading each image once. Single label tasks whose samples are files read the
+    global features held by the stores without decoding their images, and encode only the images
+    some store lacks. Features stay in memory until the object is released, so that every
+    protocol of every encoder reuses them.
+
+    Args:
+        task: Task bound to its data.
+        encoders: Encoders evaluated on the task.
+        stores: Feature store of each encoder, or `None` for an encoder without one.
+        needs: Kinds of features each encoder needs, true standing for dense maps.
+        config: Settings giving the batch size and the device.
+    """
+
+    def __init__(
+        self,
+        task: Task,
+        encoders: Sequence[Encoder],
+        stores: Sequence[FeatureStore | None],
+        needs: Sequence[frozenset[bool]],
+        config: EvaluationConfig,
+    ) -> None:
+        self.task = task
+        self.encoders = list(encoders)
+        self.stores = list(stores)
+        self.needs = list(needs)
+        self.config = config
+        complete = all(store is not None for store in self.stores)
+        self.labels = _reusable_labels(task) if complete else None
+        self.cache: dict[tuple[int, bool, Split], Features] = {}
+
+    def get(self, index: int, split: Split, dense: bool) -> Features:
+        """Features of one encoder on one partition, extracting them for all encoders if needed.
+
+        Args:
+            index: Position of the encoder in `encoders`.
+            split: Partition whose features are requested.
+            dense: Whether dense maps are requested instead of global embeddings.
+
+        Returns:
+            The features of the encoder on the partition.
+        """
+        if (index, dense, split) not in self.cache:
+            members = [
+                i
+                for i, kinds in enumerate(self.needs)
+                if (dense in kinds or i == index) and (i, dense, split) not in self.cache
+            ]
+            extracted = self._extract(members, split, dense)
+            for member, features in zip(members, extracted, strict=True):
+                self.cache[member, dense, split] = features
+        return self.cache[index, dense, split]
+
+    def view(self, index: int) -> Callable[[Split, bool], Features]:
+        """Accessor of the features of one encoder.
+
+        Args:
+            index: Position of the encoder in `encoders`.
+
+        Returns:
+            A function of the partition and kind returning the features of that encoder.
+        """
+        return lambda split, dense: self.get(index, split, dense)
+
+    def _encode(
+        self, members: Sequence[int], samples: Sequence[Sample], split: Split, dense: bool
+    ) -> list[Features]:
+        """Features of the given encoders on the given samples, encoded unless stored."""
+        return extract_many(
+            [self.encoders[i] for i in members],
+            samples,
+            dense=dense,
+            batch_size=self.config.batch_size,
+            device=torch.device(self.config.device),
+            description=f"{self.task.spec.id} {split}",
+            stores=[self.stores[i] for i in members],
+        )
+
+    def _extract(self, members: Sequence[int], split: Split, dense: bool) -> list[Features]:
+        """Features of the given encoders on one partition, read from the stores when possible."""
+        task = self.task
+        if dense or self.labels is None:
+            return self._encode(members, task.samples(split), split, dense)
+        assert isinstance(task.loader, FileLoader)
+        loader, labels = task.loader, self.labels
+        stores = [store for store in (self.stores[i] for i in members) if store is not None]
+        ids = task.split.ids(split)
+        paths = [loader.path(loader.members(i)[0]) for i in ids]
+        missing = [
+            sample_id
+            for sample_id, path in zip(ids, paths, strict=True)
+            if any(store.get(path, False) is None for store in stores)
+        ]
+        if missing:
+            self._encode(members, LazySamples(loader, missing), split, dense)
+        results = []
+        for store in stores:
+            values = [store.get(path, False) for path in paths]
+            results.append(
+                Features(
+                    values=torch.stack([value for value in values if value is not None]),
+                    targets=tuple(labels[i] for i in ids),
+                    ids=tuple(ids),
+                    paths=tuple(paths),
+                )
+            )
+        return results
+
+
 def evaluate_task(
     encoder: Encoder,
     task: Task,
@@ -452,6 +626,7 @@ def evaluate_task(
     *,
     store: FeatureStore | None = None,
     done: frozenset[tuple[str, ...]] = frozenset(),
+    features: Callable[[Split, bool], Features] | None = None,
 ) -> list[LeaderboardRow]:
     """Every protocol and budget of one task, with features extracted once per partition.
 
@@ -471,6 +646,9 @@ def evaluate_task(
         registry_version: Version of the registry recorded on every row.
         store: Features already encoded, read and extended in place when given.
         done: Settings to skip, each given as task, task hash, protocol, protocol hash and budget.
+        features: Accessor of the features of the encoder by partition and kind, shared with
+            other encoders through `TaskFeatures`. One serving this encoder alone is made when
+            `None`.
 
     Returns:
         One leaderboard row per protocol and budget evaluated.
@@ -478,66 +656,23 @@ def evaluate_task(
     spec = task.spec
     device = torch.device(config.device)
     n_classes = len(spec.classes)
-    cache: dict[tuple[bool, Split], Features] = {}
-    labels_of = _reusable_labels(task) if store is not None else None
-
-    def encode(samples: LazySamples, dense: bool, split: Split) -> Features:
-        """Features of the given samples of one partition, encoded unless stored."""
-        return extract(
-            encoder,
-            samples,
-            dense=dense,
-            batch_size=config.batch_size,
-            device=device,
-            description=f"{spec.id} {split}",
-            store=store,
-        )
-
-    def stored(split: Split) -> Features:
-        """Global features of a partition read from the store, encoding only the missing images."""
-        assert store is not None and labels_of is not None
-        assert isinstance(task.loader, FileLoader)
-        loader = task.loader
-        ids = task.split.ids(split)
-        paths = [loader.path(loader.members(i)[0]) for i in ids]
-        missing = [i for i, path in zip(ids, paths, strict=True) if store.get(path, False) is None]
-        if missing:
-            encode(LazySamples(loader, missing), False, split)
-        values = [store.get(path, False) for path in paths]
-        return Features(
-            values=torch.stack([value for value in values if value is not None]),
-            targets=tuple(labels_of[i] for i in ids),
-            ids=tuple(ids),
-            paths=tuple(paths),
-        )
-
-    def features(split: Split, dense: bool) -> Features:
-        """Features of a partition, computed once per partition and kind."""
-        if (dense, split) not in cache:
-            reuse = not dense and labels_of is not None
-            cache[dense, split] = (
-                stored(split) if reuse else encode(task.samples(split), dense, split)
-            )
-        return cache[dense, split]
+    if features is None:
+        needs = feature_kinds(spec, protocols, encoder, done)
+        features = TaskFeatures(task, [encoder], [store], [needs], config).view(0)
 
     rows: list[LeaderboardRow] = []
     records: list[pd.DataFrame] = []
     for protocol in protocols:
         if spec.kind not in protocol.kinds:
             continue
-        if protocol.dense and not encoder.has_dense:
+        if not applicable(spec, protocol, encoder):
             log.warning(
                 "encoder lacks dense features, define postprocess_dense to evaluate it",
                 task=spec.id,
                 protocol=protocol.name,
             )
             continue
-        fixed = isinstance(protocol, DirectProtocol) and not protocol.budgeted
-        budgets = [
-            budget
-            for budget in ((FULL,) if fixed else spec.budgets)
-            if (spec.id, spec.hash, protocol.name, protocol.hash, str(budget)) not in done
-        ]
+        budgets = pending_budgets(spec, protocol, done)
         if not budgets:
             log.info("already evaluated", task=spec.id, protocol=protocol.name)
             continue
@@ -551,7 +686,17 @@ def evaluate_task(
             repeats = config.seeds if protocol.stochastic or not budget.is_full else 1
             runs = []
             statistics: list[Statistic] = []
+            began = time.monotonic()
+            log.info(
+                "fitting",
+                task=spec.id,
+                model=encoder.name,
+                protocol=protocol.name,
+                budget=str(budget),
+                runs=repeats,
+            )
             for seed in range(repeats):
+                run_began = time.monotonic()
                 subset = train.subset(budget_indices(budget, n_train, labels, seed))
                 held_out = budget_validation(val, budget, spec, seed)
                 if isinstance(protocol, DirectProtocol):
@@ -573,6 +718,16 @@ def evaluate_task(
                 run_records.insert(1, "budget", str(budget))
                 run_records.insert(2, "seed", seed)
                 records.append(run_records)
+                if repeats > 1:
+                    log.info(
+                        "run finished",
+                        task=spec.id,
+                        model=encoder.name,
+                        protocol=protocol.name,
+                        budget=str(budget),
+                        seed=seed,
+                        seconds=round(time.monotonic() - run_began, 1),
+                    )
             interval = (
                 bootstrap_interval(
                     averaged(statistics), len(test.targets), resamples=config.bootstrap
@@ -594,11 +749,13 @@ def evaluate_task(
             log.info(
                 "evaluated",
                 task=spec.id,
+                model=encoder.name,
                 protocol=protocol.name,
                 budget=str(budget),
                 metric=summary.primary_metric,
                 mean=round(summary.score, 4),
                 std=round(summary.stds[summary.primary_metric], 4),
+                seconds=round(time.monotonic() - began, 1),
             )
             rows.append(summary)
     if not rows:
@@ -705,79 +862,145 @@ def completed(leaderboard: Leaderboard, model: str) -> frozenset[tuple[str, ...]
     )
 
 
+def task_order(specs: Iterable[TaskSpec]) -> list[TaskSpec]:
+    """Tasks grouped by dataset, so that the images of a dataset are read while they are fresh.
+
+    Datasets follow the order of their first task and tasks keep their order within a dataset.
+
+    Args:
+        specs: Tasks to order.
+
+    Returns:
+        The tasks, those of each dataset next to each other.
+    """
+    specs = list(specs)
+    first: dict[str, int] = {}
+    for position, spec in enumerate(specs):
+        first.setdefault(spec.dataset, position)
+    return sorted(specs, key=lambda spec: first[spec.dataset])
+
+
 def evaluate(
-    encoder: Encoder,
+    encoders: Encoder | Sequence[Encoder],
     config: EvaluationConfig | None = None,
     *,
     registry: Registry | None = None,
     tasks: Sequence[Task] | None = None,
     **overrides: Any,
 ) -> list[LeaderboardRow]:
-    """Evaluate an encoder and record the results on the leaderboard.
+    """Evaluate one or several encoders and record the results on the leaderboard.
 
     Settings come from `config` updated by keyword `overrides`, for instance
-    `evaluate(encoder, exclude_datasets=("etis",))`. The pretraining datasets declared by the
-    encoder are added to those of the configuration. Explicit `tasks` bypass the registry
-    selection. Tasks whose split is not built or whose data are neither local nor streamable are
-    skipped with a warning. The rows of each task are written to the leaderboard as soon as it
-    finishes, and pending features are flushed to the feature cache after every task.
+    `evaluate(encoder, exclude_datasets=("etis",))`. The pretraining datasets declared by each
+    encoder are added to those of the configuration, so every encoder may skip different tasks.
+    Explicit `tasks` bypass the registry selection. Tasks whose split is not built or whose data
+    are neither local nor streamable are skipped with a warning.
+
+    Tasks run one after the other, grouped by dataset, and every encoder that keeps a task is
+    evaluated on it before the next task starts. The images of each partition are read once and
+    handed to every encoder, so a streamed dataset is downloaded once whatever the number of
+    encoders, and all encoders must fit on the device together. The rows of each task are written
+    to the leaderboard as soon as an encoder finishes it, and pending features are flushed to the
+    feature cache after every task.
 
     Args:
-        encoder: Encoder to evaluate.
+        encoders: Encoder, or encoders with distinct names, to evaluate.
         config: Base settings, the defaults of `EvaluationConfig` when `None`.
         registry: Registry of datasets and tasks, read with `load_registry` when `None`.
         tasks: Tasks bound to their data to evaluate instead of the registry selection.
         **overrides: Fields of `EvaluationConfig` replacing those of `config`.
 
     Returns:
-        The leaderboard rows of every task evaluated.
+        The leaderboard rows of every encoder on every task evaluated.
 
     Raises:
-        pydantic.ValidationError: If the settings or the metadata of the encoder are invalid.
-        ValueError: If a protocol, a task pattern or an excluded dataset key is unknown.
+        pydantic.ValidationError: If the settings or the metadata of an encoder are invalid.
+        ValueError: If no encoder is given, two encoders share a name, or a protocol, a task
+            pattern or an excluded dataset key is unknown.
         EvaluationError: If some tasks failed, once every other task has been recorded.
     """
-    card = encoder.card
+    models = [encoders] if isinstance(encoders, Encoder) else list(encoders)
+    if not models:
+        raise ValueError("no encoder to evaluate")
+    names = [model.card.name for model in models]
+    repeated = sorted({name for name in names if names.count(name) > 1})
+    if repeated:
+        raise ValueError(f"encoders must have distinct names, repeated {', '.join(repeated)}")
     base = (config or EvaluationConfig()).model_dump()
     config = EvaluationConfig.model_validate(base | overrides)
-    config = config.model_copy(update={"pretrained_on": declaration(encoder, config) or ()})
     protocols = resolve_protocols(config.protocols)
     registry = registry or load_registry()
     if config.limit is not None:
         config = smoke_paths(config)
         log.warning("smoke test on a few samples per partition", limit=config.limit)
+    configs = [
+        config.model_copy(update={"pretrained_on": declaration(model, config) or ()})
+        for model in models
+    ]
     leaderboard = Leaderboard(config.leaderboard)
-    done = completed(leaderboard, card.name) if config.resume else frozenset()
-    pending: Sequence[Task | TaskSpec] = (
-        tasks if tasks is not None else select_tasks(registry, config)
-    )
-    log.info("evaluation started", model=card.name, tasks=len(pending))
+    done = [
+        completed(leaderboard, name) if config.resume else frozenset[tuple[str, ...]]()
+        for name in names
+    ]
+    if tasks is not None:
+        pending: list[Task | TaskSpec] = list(tasks)
+        members = {id(item): list(range(len(models))) for item in pending}
+    else:
+        selections = [{spec.id for spec in select_tasks(registry, own)} for own in configs]
+        chosen = [spec for spec in registry.tasks if any(spec.id in s for s in selections)]
+        ordered = task_order(chosen)
+        pending = list(ordered)
+        members = {
+            id(spec): [i for i, s in enumerate(selections) if spec.id in s] for spec in ordered
+        }
+    log.info("evaluation started", models=names, tasks=len(pending))
     rows: list[LeaderboardRow] = []
     failed: list[str] = []
-    store = FeatureStore(feature_directory(encoder, config))
+    stores = [
+        FeatureStore(feature_directory(model, own))
+        for model, own in zip(models, configs, strict=True)
+    ]
     for item in pending:
         name = item.spec.id if isinstance(item, Task) else item.id
+        indices = members[id(item)]
         started = time.monotonic()
         try:
             task = item if isinstance(item, Task) else _prepare(item, registry, config)
-            if task is None:
-                continue
-            if config.limit is not None:
-                task = shrink(task, config.limit)
-            task_rows = evaluate_task(
-                encoder, task, protocols, config, registry.version, store=store, done=done
-            )
         except Exception:
             log.exception("task failed", task=name)
             failed.append(name)
             continue
-        finally:
-            store.flush()
-        leaderboard.upsert(task_rows)
-        rows.extend(task_rows)
+        if task is None:
+            continue
+        if config.limit is not None:
+            task = shrink(task, config.limit)
+        needs = [feature_kinds(task.spec, protocols, models[i], done[i]) for i in indices]
+        shared = TaskFeatures(
+            task, [models[i] for i in indices], [stores[i] for i in indices], needs, config
+        )
+        for position, index in enumerate(indices):
+            try:
+                task_rows = evaluate_task(
+                    models[index],
+                    task,
+                    protocols,
+                    configs[index],
+                    registry.version,
+                    store=stores[index],
+                    done=done[index],
+                    features=shared.view(position),
+                )
+            except Exception:
+                log.exception("task failed", task=name, model=names[index])
+                failed.append(f"{name} ({names[index]})" if len(models) > 1 else name)
+                continue
+            finally:
+                stores[index].flush()
+            leaderboard.upsert(task_rows)
+            rows.extend(task_rows)
         seconds = round(time.monotonic() - started)
-        log.info("task finished", task=name, rows=len(task_rows), seconds=seconds)
-    log.info("evaluation finished", model=card.name, rows=len(rows), failed=len(failed))
+        log.info("task finished", task=name, models=len(indices), seconds=seconds)
+    log.info("evaluation finished", models=names, rows=len(rows), failed=len(failed))
     if failed:
         raise EvaluationError(f"tasks failed after the others were recorded: {failed}")
     return rows

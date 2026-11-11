@@ -80,7 +80,6 @@ class Features(BaseModel):
         return np.eye(n_classes)[self.labels()]
 
 
-@torch.inference_mode()
 def extract(
     encoder: Encoder,
     samples: Sequence[Sample],
@@ -113,45 +112,107 @@ def extract(
     Raises:
         ValueError: If the encoder produces features of an unexpected shape.
     """
-    encoder.eval().to(device)
-    rows: list[torch.Tensor | None] = []
+    (features,) = extract_many(
+        [encoder],
+        samples,
+        dense=dense,
+        batch_size=batch_size,
+        device=device,
+        description=description,
+        stores=[store],
+    )
+    return features
+
+
+@torch.inference_mode()
+def extract_many(
+    encoders: Sequence[Encoder],
+    samples: Sequence[Sample],
+    *,
+    dense: bool,
+    batch_size: int,
+    device: torch.device,
+    description: str = "",
+    stores: Sequence[FeatureStore | None] | None = None,
+) -> list[Features]:
+    """Encode every sample with several encoders, reading and decoding each image once.
+
+    Every image is handed to each encoder whose store lacks its features, and each encoder runs
+    on its own batches, so that a streamed dataset is downloaded once for all of them. All
+    encoders are put in evaluation mode and moved to `device` together. Ordering and precision
+    follow `extract`.
+
+    Args:
+        encoders: Frozen encoders applied to the images.
+        samples: Samples of one partition, read once in iteration order.
+        dense: Whether to extract dense feature maps instead of global embeddings.
+        batch_size: Number of images encoded together by each encoder.
+        device: Device on which the encoders run.
+        description: Label of the progress bar.
+        stores: Features already encoded by each encoder, read and extended in place, or `None`
+            to store nothing.
+
+    Returns:
+        The features of each encoder in the order of `encoders`, on the CPU, with the targets,
+        identifiers and paths of the samples.
+
+    Raises:
+        ValueError: If an encoder produces features of an unexpected shape, or if the number of
+            stores differs from the number of encoders.
+    """
+    stores = [None] * len(encoders) if stores is None else list(stores)
+    if len(stores) != len(encoders):
+        raise ValueError(f"{len(encoders)} encoders but {len(stores)} stores")
+    for encoder in encoders:
+        encoder.eval().to(device)
+    rows: list[list[torch.Tensor | None]] = [[] for _ in encoders]
+    images: list[list[NDArray[np.uint8]]] = [[] for _ in encoders]
+    waiting: list[list[int]] = [[] for _ in encoders]
     targets: list[Target] = []
     ids: list[str] = []
     paths: list[str] = []
-    images: list[NDArray[np.uint8]] = []
-    waiting: list[int] = []
 
-    def flush() -> None:
-        """Encode the waiting images, place their rows and add them to the store."""
-        output = run(encoder, images, device, dense=dense).detach().float().cpu()
+    def flush(index: int) -> None:
+        """Encode the images waiting for one encoder, place their rows and store them."""
+        output = run(encoders[index], images[index], device, dense=dense).detach().float().cpu()
         output = output.half() if dense else output
-        for position, row in zip(waiting, output, strict=True):
-            rows[position] = row
+        for position, row in zip(waiting[index], output, strict=True):
+            rows[index][position] = row
+        store = stores[index]
         if store is not None:
-            store.put([paths[position] for position in waiting], output, dense)
-        images.clear()
-        waiting.clear()
+            store.put([paths[position] for position in waiting[index]], output, dense)
+        images[index].clear()
+        waiting[index].clear()
 
     for sample in tqdm(samples, desc=description, leave=False):
-        cached = store.get(sample.path, dense) if store is not None else None
-        rows.append(cached)
         targets.append(sample.target)
         ids.append(sample.id)
         paths.append(sample.path)
-        if cached is None:
-            images.append(sample.image)
-            waiting.append(len(rows) - 1)
-            if len(images) == batch_size:
-                flush()
-    if images:
-        flush()
-    values = torch.stack([row for row in rows if row is not None])
+        for index, store in enumerate(stores):
+            cached = store.get(sample.path, dense) if store is not None else None
+            rows[index].append(cached)
+            if cached is None:
+                images[index].append(sample.image)
+                waiting[index].append(len(ids) - 1)
+                if len(images[index]) == batch_size:
+                    flush(index)
+    for index in range(len(encoders)):
+        if images[index]:
+            flush(index)
     canonical = getattr(samples, "ids", None)
+    order = None
     if canonical is not None and list(canonical) != ids:
         position = {sample_id: i for i, sample_id in enumerate(ids)}
         order = [position[sample_id] for sample_id in canonical]
-        values = values[torch.as_tensor(order, dtype=torch.long)]
         targets = [targets[i] for i in order]
         ids = [ids[i] for i in order]
         paths = [paths[i] for i in order]
-    return Features(values=values, targets=tuple(targets), ids=tuple(ids), paths=tuple(paths))
+    results = []
+    for encoded in rows:
+        values = torch.stack([row for row in encoded if row is not None])
+        if order is not None:
+            values = values[torch.as_tensor(order, dtype=torch.long)]
+        results.append(
+            Features(values=values, targets=tuple(targets), ids=tuple(ids), paths=tuple(paths))
+        )
+    return results
