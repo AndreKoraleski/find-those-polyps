@@ -1,3 +1,4 @@
+import email.message
 import hashlib
 import http.client
 import http.server
@@ -166,6 +167,32 @@ def test_failed_requests_are_retried(range_server: Server, monkeypatch: pytest.M
     monkeypatch.setattr("time.sleep", lambda _: None)
     assert len(remote._request(f"{url}/set.zip", 0, 9)) == 10
     assert len(calls) == 2
+
+
+def test_throttling_hosts_are_waited_for(
+    range_server: Server, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url, directory, _ = range_server
+    _publish(directory)
+    opened = urllib.request.urlopen
+    calls = []
+    waits: list[float] = []
+
+    def throttling(request: urllib.request.Request, timeout: float) -> object:
+        calls.append(request)
+        if len(calls) <= remote.RETRIES + 1:
+            headers = email.message.Message()
+            if len(calls) == 1:
+                headers["Retry-After"] = "3"
+            raise urllib.error.HTTPError(request.full_url, 429, "Too Many Requests", headers, None)
+        return opened(request, timeout=timeout)
+
+    monkeypatch.setattr(urllib.request, "urlopen", throttling)
+    monkeypatch.setattr("time.sleep", waits.append)
+    assert len(remote._request(f"{url}/set.zip", 0, 9)) == 10
+    assert waits[0] == 3.0 and waits[1:] == [10.0, 20.0, 40.0, 60.0, 60.0]
+    error = urllib.error.HTTPError(url, 429, "Too Many Requests", email.message.Message(), None)
+    assert remote.throttle_wait(error, 1) == 5.0
 
 
 def test_truncated_responses_are_completed(

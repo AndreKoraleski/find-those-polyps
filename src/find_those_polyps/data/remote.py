@@ -44,10 +44,35 @@ CHUNK = 1 << 20
 FIRST_WINDOW = 4 << 20
 PIECE = 4 << 20
 TRANSIENT = (OSError, urllib.error.URLError, http.client.HTTPException)
+THROTTLED = frozenset({429, 503})
+"""HTTP statuses of a host asking its clients to slow down."""
+THROTTLE_RETRIES = 10
+"""Number of times a range request waits for a throttling host before giving up."""
+THROTTLE_WAIT = 60.0
+"""Longest wait in seconds for a throttling host, whatever its `Retry-After` asks."""
 
 
 class RangeUnsupportedError(RuntimeError):
     """Raised when a server answers a range request without partial content."""
+
+
+def throttle_wait(error: urllib.error.HTTPError, attempt: int) -> float:
+    """Seconds to wait before asking a throttling host again.
+
+    Args:
+        error: Response of the host, whose `Retry-After` header is honoured when it gives seconds.
+        attempt: Number of throttled answers so far, from one.
+
+    Returns:
+        The requested delay, or else 5 seconds doubled at every attempt, capped at
+        `THROTTLE_WAIT`.
+    """
+    requested = error.headers.get("Retry-After") if error.headers else None
+    try:
+        wait = float(requested) if requested is not None else 5.0 * 2 ** (attempt - 1)
+    except ValueError:
+        wait = 5.0 * 2 ** (attempt - 1)
+    return min(max(wait, 1.0), THROTTLE_WAIT)
 
 
 def _request(url: str, start: int, end: int) -> bytes:
@@ -55,7 +80,9 @@ def _request(url: str, start: int, end: int) -> bytes:
 
     Truncated responses, which some hosts send for large ranges, are kept and completed by a request
     for the remaining bytes. Requests that fail transiently or yield nothing are retried with waits
-    of 2, 4, 8 and 16 seconds, and at most `RETRIES` attempts may fail over the whole range.
+    of 2, 4, 8 and 16 seconds, and at most `RETRIES` attempts may fail over the whole range. A host
+    that answers 429 or 503, asking clients to slow down, is waited for as `throttle_wait` says, up
+    to `THROTTLE_RETRIES` times, without counting against `RETRIES`.
 
     Args:
         url: Address of the file.
@@ -74,6 +101,7 @@ def _request(url: str, start: int, end: int) -> bytes:
     parts: list[bytes] = []
     position = start
     failures = 0
+    throttled = 0
     while position <= end:
         headers = {"User-Agent": USER_AGENT, "Range": f"bytes={position}-{end}"}
         try:
@@ -84,6 +112,14 @@ def _request(url: str, start: int, end: int) -> bytes:
                 data: bytes = response.read()
         except http.client.IncompleteRead as error:
             data = error.partial
+        except urllib.error.HTTPError as error:
+            if error.code in THROTTLED and throttled < THROTTLE_RETRIES:
+                throttled += 1
+                time.sleep(throttle_wait(error, throttled))
+                continue
+            if failures == RETRIES - 1:
+                raise
+            data = b""
         except TRANSIENT:
             if failures == RETRIES - 1:
                 raise
