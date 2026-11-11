@@ -978,6 +978,7 @@ def evaluate(
         shared = TaskFeatures(
             task, [models[i] for i in indices], [stores[i] for i in indices], needs, config
         )
+        lost = len(failed)
         for position, index in enumerate(indices):
             try:
                 task_rows = evaluate_task(
@@ -999,7 +1000,13 @@ def evaluate(
             leaderboard.upsert(task_rows)
             rows.extend(task_rows)
         seconds = round(time.monotonic() - started)
-        log.info("task finished", task=name, models=len(indices), seconds=seconds)
+        log.info(
+            "task finished",
+            task=name,
+            models=len(indices),
+            failed=len(failed) - lost,
+            seconds=seconds,
+        )
     log.info("evaluation finished", models=names, rows=len(rows), failed=len(failed))
     if failed:
         raise EvaluationError(f"tasks failed after the others were recorded: {failed}")
