@@ -96,6 +96,28 @@ def test_stream_yields_groups_in_order_across_windows(range_server: Server) -> N
     assert all(content == contents[name] for r in results for name, content in r.items())
 
 
+def test_long_runs_are_fetched_as_parallel_pieces(
+    range_server: Server, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url, directory, _ = range_server
+    contents = _publish(directory)
+    archive = f"{url}/set.zip"
+    members = read_index(archive).members
+    spans: list[tuple[int, int]] = []
+    request = remote._request
+
+    def recording(address: str, start: int, end: int) -> bytes:
+        spans.append((start, end))
+        return request(address, start, end)
+
+    monkeypatch.setattr(remote, "_request", recording)
+    monkeypatch.setattr(remote, "PIECE", 256)
+    results = list(stream([[(archive, m) for m in members]], workers=4))
+    assert results[0] == {m.name: contents[m.name] for m in members}
+    assert len(spans) > 1 and all(end - start < 256 for start, end in spans)
+    assert remote.pieces(0, 600, 256) == [(0, 255), (256, 511), (512, 599)]
+
+
 def test_servers_without_ranges_are_detected(range_server: Server) -> None:
     url, directory, server = range_server
     _publish(directory)

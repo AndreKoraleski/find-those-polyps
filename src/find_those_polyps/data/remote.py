@@ -2,8 +2,10 @@
 
 The central directory of an archive is read with a few HTTP range requests and kept as an index of
 members with their offsets, sizes and CRC32 values. Members are then fetched in windows whose
-neighbouring files are coalesced into single requests, so that a window can be processed while the
-next ones download. Every member is verified against the CRC32 recorded in the index.
+neighbouring files are coalesced into shared spans, so that a window can be processed while the
+next ones download. Long spans are split into pieces requested in parallel, since many hosts limit
+the throughput of each connection. Every member is verified against the CRC32 recorded in the
+index.
 """
 
 import hashlib
@@ -40,6 +42,7 @@ END_SIGNATURE = b"PK" + bytes([5, 6])
 ZIP64_LOCATOR = b"PK" + bytes([6, 7])
 CHUNK = 1 << 20
 FIRST_WINDOW = 4 << 20
+PIECE = 4 << 20
 TRANSIENT = (OSError, urllib.error.URLError, http.client.HTTPException)
 
 
@@ -651,6 +654,21 @@ def runs(members: Iterable[Member]) -> list[list[Member]]:
     return grouped
 
 
+def pieces(start: int, stop: int, size: int | None = None) -> list[tuple[int, int]]:
+    """Split a byte span into consecutive pieces of at most `size` bytes.
+
+    Args:
+        start: Offset of the first byte.
+        stop: Offset just past the last byte.
+        size: Largest piece in bytes, `PIECE` when `None`.
+
+    Returns:
+        The first and last offset, inclusive, of every piece in order.
+    """
+    size = PIECE if size is None else size
+    return [(offset, min(offset + size, stop) - 1) for offset in range(start, stop, size)]
+
+
 def fetch_run(url: str, run: Sequence[Member]) -> dict[str, bytes]:
     """Read a run of members with a single range request.
 
@@ -716,19 +734,21 @@ def stream(
     *,
     window_bytes: int = 64 << 20,
     lookahead: int = 2,
-    workers: int = 4,
+    workers: int = 8,
 ) -> Iterator[dict[str, bytes]]:
     """Read the members of each group in order, with later windows downloading in the background.
 
     Each group pairs archive URLs with the members one sample needs. Groups are batched into windows
     by `windows`, at most `lookahead` windows beyond the one being consumed are in flight, and each
-    window is fetched with coalesced requests run by `workers` threads.
+    window is fetched as coalesced runs whose pieces of at most `PIECE` bytes are requested by
+    `workers` threads at once.
 
     Args:
         groups: Pairs of archive URL and member needed by each sample, in consumption order.
         window_bytes: Largest window in compressed bytes. Defaults to 64 mebibytes.
         lookahead: Number of windows fetched ahead of the one being consumed. Defaults to 2.
-        workers: Number of threads that run the range requests. Defaults to 4.
+        workers: Number of threads, and so of parallel connections, that run the range
+            requests. Defaults to 8.
 
     Yields:
         The verified content of the members of each group by member name, one mapping per group.
@@ -736,15 +756,20 @@ def stream(
     batches = windows(groups, window_bytes)
 
     def fetch_window(batch: list[Sequence[tuple[str, Member]]]) -> dict[str, bytes]:
-        """Contents of every member of one window, fetched run by run on the worker threads."""
+        """Contents of every member of one window, its pieces fetched on the worker threads."""
         by_url: dict[str, list[Member]] = {}
         for group in batch:
             for url, member in group:
                 by_url.setdefault(url, []).append(member)
         jobs = [(url, run) for url, members in by_url.items() for run in runs(members)]
+        spans = [(url, span) for url, run in jobs for span in pieces(run[0].offset, run[-1].end)]
+        fetched = iter(pool.map(lambda job: _request(job[0], *job[1]), spans))
         contents: dict[str, bytes] = {}
-        for part in pool.map(lambda job: fetch_run(*job), jobs):
-            contents |= part
+        for _, run in jobs:
+            count = len(pieces(run[0].offset, run[-1].end))
+            buffer = b"".join(next(fetched) for _ in range(count))
+            base = run[0].offset
+            contents |= {member.name: decode(member, buffer, base) for member in run}
         return contents
 
     with ThreadPoolExecutor(workers) as pool, ThreadPoolExecutor(lookahead + 1) as planner:
