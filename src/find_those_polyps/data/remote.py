@@ -8,10 +8,12 @@ the throughput of each connection. Every member is verified against the CRC32 re
 index.
 """
 
+import functools
 import hashlib
 import http.client
 import io
 import json
+import ssl
 import struct
 import time
 import urllib.error
@@ -50,6 +52,39 @@ THROTTLE_RETRIES = 10
 """Number of times a range request waits for a throttling host before giving up."""
 THROTTLE_WAIT = 60.0
 """Longest wait in seconds for a throttling host, whatever its `Retry-After` asks."""
+
+
+INTERMEDIATES = Path(__file__).with_name("intermediates.pem")
+"""Intermediate certificates added to the trusted ones, for hosts that do not send them."""
+
+
+@functools.cache
+def tls() -> ssl.SSLContext:
+    """Certificate verification context of every request to a dataset host.
+
+    The context trusts the certificates of the system and the intermediates of `INTERMEDIATES`,
+    since some hosts omit an intermediate that clients without issuer fetching, such as Python on
+    Linux, need to verify them. Verification and host name checks stay enabled.
+
+    Returns:
+        The shared default context with the bundled intermediates loaded.
+    """
+    context = ssl.create_default_context()
+    context.load_verify_locations(cafile=str(INTERMEDIATES))
+    return context
+
+
+def open_url(request: urllib.request.Request, timeout: float = TIMEOUT) -> Any:
+    """Open a request with the verification context of `tls`.
+
+    Args:
+        request: Request to send.
+        timeout: Seconds to wait for the connection and for each read.
+
+    Returns:
+        The response, to be used as a context manager.
+    """
+    return urllib.request.urlopen(request, timeout=timeout, context=tls())
 
 
 class RangeUnsupportedError(RuntimeError):
@@ -106,7 +141,7 @@ def _request(url: str, start: int, end: int) -> bytes:
         headers = {"User-Agent": USER_AGENT, "Range": f"bytes={position}-{end}"}
         try:
             request = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            with open_url(request) as response:
                 if response.status != 206:
                     raise RangeUnsupportedError(url)
                 data: bytes = response.read()
@@ -167,7 +202,7 @@ def _download(url: str, partial: Path, label: str) -> None:
         label: Description shown by the progress bar.
     """
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=TIMEOUT) as response, partial.open("wb") as out:
+    with open_url(request) as response, partial.open("wb") as out:
         total = int(response.headers.get("Content-Length") or 0) or None
         with tqdm(total=total, unit="B", unit_scale=True, desc=label, leave=False) as bar:
             while chunk := response.read(CHUNK):
@@ -229,7 +264,7 @@ def remote_size(url: str) -> int:
         RangeUnsupportedError: If the server does not answer with partial content.
     """
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Range": "bytes=0-0"})
-    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+    with open_url(request) as response:
         if response.status != 206:
             raise RangeUnsupportedError(url)
         content_range = response.headers.get("Content-Range", "")
@@ -578,7 +613,7 @@ class MemberReader(io.RawIOBase):
             "Range": f"bytes={self.position}-{self.member.end - 1}",
         }
         request = urllib.request.Request(self.url, headers=headers)
-        self.response = urllib.request.urlopen(request, timeout=TIMEOUT)
+        self.response = open_url(request)
         if self.response.status != 206:
             raise RangeUnsupportedError(self.url)
 

@@ -18,10 +18,10 @@ from pydantic import BaseModel, ConfigDict
 
 from find_those_polyps.data.remote import (
     RETRIES,
-    TIMEOUT,
     TRANSIENT,
     USER_AGENT,
     RangeUnsupportedError,
+    open_url,
     read_index,
 )
 from find_those_polyps.registry.schema import DatasetCard, Download
@@ -107,7 +107,7 @@ def _download(url: str) -> bytes:
         The bytes of the file.
     """
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+    with open_url(request) as response:
         data: bytes = response.read()
     return data
 

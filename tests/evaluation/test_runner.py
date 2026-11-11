@@ -437,3 +437,18 @@ def test_task_order_groups_tasks_by_dataset() -> None:
     ]
     order = [spec.id for spec in runner.task_order(specs)]
     assert order == ["cls/a1", "cls/a2", "cls/b1", "cls/b2", "cls/c1"]
+
+
+def test_datasets_that_fail_to_stream_count_as_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    files = LocalFiles("shared", tmp_path / "missing")
+    files.stream_error = "certificate verify failed"
+    loader = FolderClassification(files, root="set", classes=[["a"], ["b"]])
+    task = _folder_tasks(tmp_path)[0]
+    monkeypatch.setattr(
+        runner, "build_task", lambda *args, **kwargs: task.model_copy(update={"loader": loader})
+    )
+    spec = task.spec.model_copy(update={"splits_sha256": "x"})
+    with pytest.raises(runner.EvaluationError, match="could not be streamed"):
+        runner._prepare(spec, Registry(version=0, sha256=""), _config(tmp_path))

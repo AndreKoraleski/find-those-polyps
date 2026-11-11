@@ -768,6 +768,9 @@ def evaluate_task(
 def _prepare(spec: TaskSpec, registry: Registry, config: EvaluationConfig) -> Task | None:
     """Task bound to its data, or `None` with a warning when its split or data are missing.
 
+    A dataset that should have been streamed but whose host failed is an error rather than a
+    missing dataset, so that the task counts as failed instead of being skipped quietly.
+
     Args:
         spec: Specification of the task.
         registry: Registry the task belongs to.
@@ -775,6 +778,9 @@ def _prepare(spec: TaskSpec, registry: Registry, config: EvaluationConfig) -> Ta
 
     Returns:
         The task ready to load its samples, or `None` when it cannot be evaluated.
+
+    Raises:
+        EvaluationError: If the dataset could not be streamed and has no local copy.
     """
     if not spec.splits_sha256:
         log.warning("split file not built", task=spec.id)
@@ -783,6 +789,9 @@ def _prepare(spec: TaskSpec, registry: Registry, config: EvaluationConfig) -> Ta
         spec, config.data_root, registry=registry, stream=config.stream, cache=config.cache
     )
     if not task.loader.available():
+        error = getattr(getattr(task.loader, "files", None), "stream_error", None)
+        if error is not None:
+            raise EvaluationError(f"dataset {spec.dataset} could not be streamed, {error}")
         log.warning("dataset not available", task=spec.id, root=str(config.data_root))
         return None
     return task

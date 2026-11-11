@@ -247,11 +247,14 @@ class LocalFiles(DatasetFiles):
     Attributes:
         key: Key of the dataset card.
         root: Dataset directory.
+        stream_error: Why streaming the dataset failed when this view replaces a streamed one,
+            `None` otherwise.
     """
 
     def __init__(self, key: str, root: Path) -> None:
         super().__init__(key)
         self.root = root
+        self.stream_error: str | None = None
 
     def available(self) -> bool:
         """Whether the dataset directory exists.
@@ -608,7 +611,7 @@ def open_files(
     `.index` folder of a stream cache was provided by the user, so both are read locally.
     Otherwise open datasets are streamed and read through the cache directory. A dataset whose
     host ignores range requests or cannot be reached falls back to the local view, which may then
-    be unavailable.
+    be unavailable, and which records the error in `stream_error`.
 
     Args:
         card: Dataset to open.
@@ -634,5 +637,6 @@ def open_files(
         files.names()
     except (RangeUnsupportedError, *TRANSIENT) as error:
         log.warning("cannot stream dataset", dataset=card.key, error=str(error))
+        local.stream_error = str(error)
         return local
     return files

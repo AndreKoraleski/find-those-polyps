@@ -2,10 +2,12 @@ import email.message
 import hashlib
 import http.client
 import http.server
+import ssl
 import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -157,11 +159,11 @@ def test_failed_requests_are_retried(range_server: Server, monkeypatch: pytest.M
     opened = urllib.request.urlopen
     calls = []
 
-    def flaky(request: urllib.request.Request, timeout: float) -> object:
+    def flaky(request: urllib.request.Request, timeout: float, **options: Any) -> object:
         calls.append(request)
         if len(calls) == 1:
             raise http.client.IncompleteRead(b"", 10)
-        return opened(request, timeout=timeout)
+        return opened(request, timeout=timeout, **options)
 
     monkeypatch.setattr(urllib.request, "urlopen", flaky)
     monkeypatch.setattr("time.sleep", lambda _: None)
@@ -178,14 +180,14 @@ def test_throttling_hosts_are_waited_for(
     calls = []
     waits: list[float] = []
 
-    def throttling(request: urllib.request.Request, timeout: float) -> object:
+    def throttling(request: urllib.request.Request, timeout: float, **options: Any) -> object:
         calls.append(request)
         if len(calls) <= remote.RETRIES + 1:
             headers = email.message.Message()
             if len(calls) == 1:
                 headers["Retry-After"] = "3"
             raise urllib.error.HTTPError(request.full_url, 429, "Too Many Requests", headers, None)
-        return opened(request, timeout=timeout)
+        return opened(request, timeout=timeout, **options)
 
     monkeypatch.setattr(urllib.request, "urlopen", throttling)
     monkeypatch.setattr("time.sleep", waits.append)
@@ -204,9 +206,9 @@ def test_truncated_responses_are_completed(
     opened = urllib.request.urlopen
     ranges = []
 
-    def truncating(request: urllib.request.Request, timeout: float) -> object:
+    def truncating(request: urllib.request.Request, timeout: float, **options: Any) -> object:
         ranges.append(request.get_header("Range"))
-        response = opened(request, timeout=timeout)
+        response = opened(request, timeout=timeout, **options)
         if len(ranges) > 1:
             return response
         with response:
@@ -253,13 +255,13 @@ def test_whole_downloads_are_retried_from_the_start(
     opened = urllib.request.urlopen
     calls: list[urllib.request.Request] = []
 
-    def flaky(request: urllib.request.Request, timeout: float) -> object:
+    def flaky(request: urllib.request.Request, timeout: float, **options: Any) -> object:
         calls.append(request)
         if len(calls) == 1:
             raise urllib.error.URLError("refused")
         if len(calls) == 2:
             return _Interrupted()
-        return opened(request, timeout=timeout)
+        return opened(request, timeout=timeout, **options)
 
     delays: list[float] = []
     monkeypatch.setattr(urllib.request, "urlopen", flaky)
@@ -275,7 +277,7 @@ def test_whole_downloads_give_up_after_every_retry(
 ) -> None:
     url, _, _ = range_server
 
-    def refused(request: urllib.request.Request, timeout: float) -> object:
+    def refused(request: urllib.request.Request, timeout: float, **options: Any) -> object:
         raise urllib.error.URLError("refused")
 
     delays: list[float] = []
@@ -284,3 +286,9 @@ def test_whole_downloads_give_up_after_every_retry(
     with pytest.raises(urllib.error.URLError):
         fetch_file(_plain(url, b"x"), tmp_path)
     assert delays == [2, 4, 8, 16]
+
+
+def test_requests_trust_the_bundled_intermediates() -> None:
+    subjects = [str(cert.get("subject")) for cert in remote.tls().get_ca_certs()]
+    assert any("Sectigo Public Server Authentication CA DV R36" in s for s in subjects)
+    assert remote.tls().verify_mode == ssl.CERT_REQUIRED and remote.tls().check_hostname
