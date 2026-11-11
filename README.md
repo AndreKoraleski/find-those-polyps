@@ -53,10 +53,10 @@ pretraining corpora. The page is generated from the public, versioned registry
 [`registry.json`](src/find_those_polyps/registry/data/registry.json).
 
 Images are never redistributed. Streaming reads the central directory of each official zip archive
-with HTTP range requests and then fetches the files of the samples in use, in windows of neighbouring
-files, so that the encoder processes one window while the next downloads. Every file is verified
-against the CRC32 of its archive, and every archive is pinned by its size and by a hash of its member
-list. Nested tarballs are unpacked as they download.
+with HTTP range requests and then fetches the files of the samples in use, in windows of
+neighbouring files, so that the encoder processes one window while the next downloads. Every file
+is verified against the CRC32 of its archive, and every archive is pinned by its size and by a hash
+of its member list. Nested tarballs are unpacked as they download.
 
 ```bash
 uv run polyps-data datasets           # every dataset with its local state
@@ -102,13 +102,12 @@ uv run polyps-evaluate my_encoder.py:build --pretrained-on hyperkvasir-unlabeled
 An encoder declares in `pretrained_on` the keys of the datasets and corpora it was pretrained on,
 an empty tuple when it was not pretrained, and the option of the same name adds to it. Every task
 whose dataset is documented to overlap a declared one is excluded, and the leaderboard records the
-declaration of each model. `--no-stream` restricts the evaluation to local copies and
-`--no-cache` keeps streamed files in memory only, and `--bootstrap 0` skips the confidence intervals.
-`--resume` continues an interrupted evaluation, skipping every setting already on the leaderboard
-for the same model under the same task and protocol definitions. Tasks sharing images, such as the
-HyperKvasir tasks, encode them once per run, and the command ends with a summary of the full budget
-scores. The notebook
-[notebooks/evaluate.ipynb](notebooks/evaluate.ipynb) walks through a full evaluation.
+declaration of each model. `--no-stream` restricts the evaluation to local copies, `--no-cache`
+keeps streamed files in memory only and `--bootstrap 0` skips the confidence intervals. `--resume`
+continues an interrupted evaluation, skipping every setting already on the leaderboard for the same
+model under the same task and protocol definitions. Tasks sharing images, such as the HyperKvasir
+tasks, encode them once per run, and the command ends with a summary of the full budget scores. The
+notebook [notebooks/evaluate.ipynb](notebooks/evaluate.ipynb) walks through a full evaluation.
 
 ## Keeping test images out of pretraining
 
@@ -158,7 +157,9 @@ every class and the test covers as many classes as possible. Byte identical imag
 one partition, and identical images with conflicting labels are excluded. Near duplicates, such as
 resized or recompressed copies and neighbouring video frames, are recognized by their perceptual
 hashes and also fall into one partition, which matters most for datasets without patient
-identifiers.
+identifiers. A test partition is never altered once committed, and
+[docs/datasets.md](docs/datasets.md) counts for every task the images lost to training and
+validation, by reason.
 
 Every metric reported in the literature for a task kind is computed, with its reference in
 `find_those_polyps.metrics.METRIC_INFO`.
@@ -181,10 +182,36 @@ Every evaluation writes four outputs.
 - `results/per_image/` holds one CSV per task and model with the prediction for every test image and its canonical path, for error analysis.
 
 `uv run find-those-polyps results` rewrites the workbook and the summary from the CSV, for instance
-after merging leaderboards. Rankings are computed by the primary metric among results obtained under identical task and
-protocol definitions, which are tracked by content hashes. Results obtained before a definition
-changed are kept in the CSV, marked as not `current`, and left out of the workbook. Overlapping
-intervals mean that two models are not distinguishable on that test set.
+after merging leaderboards. Rankings are computed by the primary metric among results obtained
+under identical task and protocol definitions, which are tracked by content hashes. Results obtained
+before a definition changed are kept in the CSV, marked as not `current`, and left out of the
+workbook. Overlapping intervals mean that two models are not distinguishable on that test set.
+
+## Limitations
+
+- The duplicate check recognizes identical files, resized and recompressed copies and neighbouring
+  video frames that look nearly alike. Crops, flips, rotations and colour changes escape it, both
+  when splits are built and when `polyps-data check` searches a corpus, so a training partition may
+  still hold such a view of a test image.
+- Datasets without patient or video identifiers, Kvasir-SEG among them, are grouped by their images
+  alone, so two images of one patient that do not look alike may fall on both sides of a split.
+- Eleven of the 35 test partitions are drawn by the benchmark, because no split was published for
+  them. Scores on those tasks compare encoders within the benchmark, but not with papers that drew
+  their own splits. The test source of every task is listed in
+  [docs/datasets.md](docs/datasets.md).
+- The pretraining declaration is made by whoever submits an encoder and cannot be verified from its
+  weights.
+- Probes on frozen features measure how accessible the information is, not what fine tuning would
+  reach. The detection probe is a linear head on the dense features, so its average precision lies
+  far below that of trained detectors and serves to rank encoders.
+- Some test partitions are small. The PolypDB BLI, FICE and LCI tasks hold six or seven test images
+  each, and their intervals are wide accordingly.
+- Several datasets may be used only for research and education or only non commercially, among them
+  EAD2020, Kvasir-SEG, Kvasir v2, Kvasir-Instrument and PolypDB, and HyperKvasir and Kvasir-Capsule
+  need permission for commercial use. The benchmark distributes no image, and whoever streams a
+  dataset is bound by its licence, given in [docs/datasets.md](docs/datasets.md).
+- Streaming depends on the official hosts. `polyps-data verify` and its weekly workflow notice a
+  moved or altered file, but cannot restore it.
 
 ## Contributing
 

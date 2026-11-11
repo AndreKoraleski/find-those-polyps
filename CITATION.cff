@@ -3,7 +3,9 @@ message: "If you use this software, please cite it as below."
 title: "find-those-polyps"
 abstract: >-
   A benchmark of unsupervised and self-supervised representation learning
-  methods for colonoscopy polyp imaging.
+  methods for colonoscopy and gastrointestinal endoscopy imaging, which
+  evaluates frozen encoders on 35 tasks drawn from 14 open, labelled datasets
+  streamed from their official hosts.
 type: software
 authors:
   - family-names: Koraleski
@@ -29,3 +31,12 @@ authors:
 repository-code: "https://github.com/AndreKoraleski/find-those-polyps"
 license: MIT
 version: 0.1.0
+date-released: "2026-11-11"
+keywords:
+  - benchmark
+  - self-supervised learning
+  - representation learning
+  - colonoscopy
+  - endoscopy
+  - polyp
+  - medical imaging
