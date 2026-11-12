@@ -181,8 +181,13 @@ Common types are `feat`, `fix`, `docs`, `refactor`, `test`, `chore` and `ci`.
 ## Pull Requests
 
 Changes reach `main` through pull requests, including those of members with
-write access. GitHub does not enforce this on `main`, so it rests on everyone
-following it.
+write access. GitHub enforces this on `main`. A pull request merges only once
+another member approved it, both CI checks pass on a branch up to date with
+`main` and every review conversation is resolved. New commits dismiss earlier
+approvals, and force pushes to `main` and its deletion are refused.
+Administrators may push small changes directly, such as documentation fixes and
+leaderboard updates, after running every check locally. Larger changes go
+through a pull request whoever makes them.
 
 1. Create a branch from `main`.
 2. Keep each pull request focused on a single change.
