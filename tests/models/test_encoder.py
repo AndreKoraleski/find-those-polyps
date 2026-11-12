@@ -110,3 +110,24 @@ def test_resizing_on_a_device_matches_the_host_and_keeps_features_apart() -> Non
     assert encoder.fingerprint() != before
     encoder.preprocess_device = None
     assert encoder.fingerprint() == before
+
+
+def test_a_wrapped_method_takes_its_module_along() -> None:
+    class Network(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.norm = torch.nn.BatchNorm1d(3)
+
+        def features(self, images: torch.Tensor) -> torch.Tensor:
+            normalized: torch.Tensor = self.norm(images.flatten(1)[:, :3])
+            return normalized
+
+    network = Network()
+    encoder = TorchEncoder(network.features, name="method", description="Bound method.")
+    encoder.eval().to(torch.float64)
+    assert encoder.owner is network
+    assert not network.training
+    assert network.norm.weight.dtype == torch.float64
+    assert set(dict(encoder.named_parameters())) == {"owner.norm.weight", "owner.norm.bias"}
+    plain = TorchEncoder(torch.nn.Identity(), name="plain", description="Plain module.")
+    assert plain.owner is None

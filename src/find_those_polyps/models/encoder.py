@@ -245,6 +245,9 @@ class TorchEncoder(Encoder):
 
     Attributes:
         module: Module or callable computing the raw output from a batch of inputs.
+        owner: Module owning `module` when it is a bound method, registered as a submodule so
+            that moving the encoder to a device or switching its mode reaches the weights, and
+            `None` otherwise.
         name: Identifier keying the leaderboard.
         description: One sentence summary of the encoder.
         pretrained_on: Keys of the datasets and corpora seen in pretraining, or `None` when
@@ -268,8 +271,9 @@ class TorchEncoder(Encoder):
 
         Args:
             module: Module or callable mapping a batch of inputs to the raw output. When it is a
-                bound method of a module, for instance `model.forward_features`, the weights of
-                that module enter the fingerprint.
+                bound method of a module, for instance `model.forward_features`, that module
+                becomes a submodule, so it follows the encoder across devices and modes and its
+                weights enter the fingerprint.
             name: Identifier keying the leaderboard.
             description: One sentence summary of the encoder.
             image_size: Side in pixels of the square input of the default `preprocess`, 224 by
@@ -284,6 +288,8 @@ class TorchEncoder(Encoder):
         """
         super().__init__()
         self.module = module
+        owner = getattr(module, "__self__", None)
+        self.owner = owner if isinstance(owner, nn.Module) else None
         self.name = name
         self.description = description
         self.pretrained_on = None if pretrained_on is None else tuple(pretrained_on)
@@ -357,11 +363,6 @@ class TorchEncoder(Encoder):
         """Code of the encoder classes followed by the code of every given stage."""
         stages = (self.module, self._preprocess, self._postprocess, self._postprocess_dense)
         return super()._sources() + [_source(stage) for stage in stages if stage is not None]
-
-    def _weighted(self) -> list[nn.Module]:
-        """This encoder and, when `module` is a bound method, the module that owns it."""
-        owner = getattr(self.module, "__self__", None)
-        return [self] + ([owner] if isinstance(owner, nn.Module) else [])
 
 
 def patch_grid(tokens: torch.Tensor, height: int | None = None) -> torch.Tensor:
