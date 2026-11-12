@@ -249,8 +249,8 @@ workbook. Overlapping intervals mean that two models are not distinguishable on 
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and for adding datasets, which
-usually requires no code.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, for adding datasets, which
+usually requires no code, models, protocols and metrics, and for publishing results.
 
 ## Citation
 
