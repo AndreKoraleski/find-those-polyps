@@ -30,8 +30,10 @@ uv run polyps-evaluate find_those_polyps.baselines:ImageNetResNet50 --tasks "cls
 
 `--dry-run` lists the selected tasks and how their data will be read, and `--limit 16` runs a smoke
 test on sixteen images per partition in a few minutes, written to `results/smoke/` so that it never
-mixes with real results. Two reference encoders are provided, an untrained ResNet-50 as the lower
-bound and a supervised ImageNet ResNet-50 as the customary transfer learning reference.
+mixes with real results. Three reference encoders are provided, an untrained ResNet-50 as the
+lower bound, a supervised ImageNet ResNet-50 as the customary transfer learning reference and the
+self supervised DINOv2 vision transformer, `find_those_polyps.baselines:DINOv2`, as a strong general
+reference.
 
 No dataset has to be downloaded beforehand. Images of open datasets are streamed from their
 official hosts while the encoder runs, and the fetched files are kept under the data root for later
