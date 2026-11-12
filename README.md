@@ -42,7 +42,12 @@ free for academic research but may not be redistributed, so each user requests a
 
 No dataset has to be downloaded beforehand. Images of open datasets are streamed from their
 official hosts while the encoder runs, and the fetched files are kept under the data root for later
-runs.
+runs. On a machine whose disk persists, setting `FIND_THOSE_POLYPS_DATA` once to a folder on
+it makes every dataset download once and every encoder encode each image once, since encoded features
+are stored under `.features/` in the same root, keyed by the fingerprint of the encoder. A later run
+then goes straight to the probes. `uv run polyps-data fetch` without dataset keys downloads every
+open dataset ahead of the first run. On machines whose disk is wiped, such as hosted notebooks, the
+data root can be copied to persistent storage after a run and back before the next.
 
 ## Tasks and data
 
