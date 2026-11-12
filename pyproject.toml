@@ -93,7 +93,7 @@ known-first-party = ["find_those_polyps"]
 
 [tool.mypy]
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "encoders"]
 mypy_path = ["src", "tests"]
 explicit_package_bases = true
 

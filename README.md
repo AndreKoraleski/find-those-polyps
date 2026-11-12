@@ -95,7 +95,8 @@ evaluate(encoder, exclude_datasets=("hyperkvasir-labeled",))
 ```
 
 The same is available from the command line for any `module:factory` or `path/to/file.py:factory`,
-with options mirroring `EvaluationConfig`. Modules in the working directory are found.
+with options mirroring `EvaluationConfig`. Modules in the working directory are found. The models of
+the team live in [`encoders/`](encoders/README.md), one file per model with a template to copy.
 
 ```bash
 uv run polyps-evaluate my_encoder.py:build --pretrained-on hyperkvasir-unlabeled

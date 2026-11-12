@@ -21,3 +21,6 @@ results/notebook/
 
 # Coverage data
 .coverage
+
+# Checkpoints of the team encoders
+encoders/weights/
