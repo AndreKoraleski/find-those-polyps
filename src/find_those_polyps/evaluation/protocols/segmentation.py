@@ -5,6 +5,7 @@ the resolution of the labels. Only the head is trained, so the score reflects th
 """
 
 import math
+import time
 from collections.abc import Iterator, Sequence
 from typing import ClassVar
 
@@ -16,7 +17,8 @@ from pydantic import NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveIn
 from torch import nn
 
 from find_those_polyps.evaluation.features import Features
-from find_those_polyps.evaluation.protocols.base import Protocol, better
+from find_those_polyps.evaluation.protocols.base import Draw, Protocol, better
+from find_those_polyps.evaluation.protocols.heads import StackedHeads
 from find_those_polyps.logging import get_logger
 from find_those_polyps.metrics import score
 from find_those_polyps.tasks.schema import Target, TaskKind, TaskSpec
@@ -260,49 +262,99 @@ class LinearSegmentation(Protocol):
             Lazy iterator over the probability maps of shape `(C, H, W)` of the test images, at
             the native resolution of their masks.
         """
+        draw = Draw(seed, np.arange(len(train.targets)))
+        return next(self.predict_runs(train, val, test, spec, [draw], device=device))
+
+    def predict_runs(
+        self,
+        train: Features,
+        val: Features,
+        test: Features,
+        spec: TaskSpec,
+        draws: Sequence[Draw],
+        *,
+        device: torch.device,
+    ) -> Iterator[Iterator[NDArray[np.float32]]]:
+        """Train the heads of every repeat at once and predict `test` with each.
+
+        The heads are stacked by `StackedHeads`, so every step trains all of them in the same
+        kernels, each on its own batch drawn from its own subset with its own seed, as `predict`
+        trains one. Each repeat is validated on its own subset and stops on its own, after which
+        its checkpoint no longer changes, and training ends once every repeat has stopped.
+
+        Args:
+            train: Whole dense training partition of shape `(N, D, h, w)` with its masks.
+            val: Whole dense validation partition with its masks.
+            test: Dense test features with their masks, which give the output resolution.
+            spec: Task specification with the classes, the kind and the primary metric.
+            draws: Seed and samples of every repeat.
+            device: Device on which the heads are trained.
+
+        Returns:
+            One lazy iterator over the test probability maps per repeat, in the order of
+            `draws`, every head being trained before this returns.
+        """
+        began = time.monotonic()
         n_classes = len(spec.classes)
         multilabel = spec.kind is TaskKind.MULTILABEL_SEGMENTATION
         dim = train.values.shape[1]
-        with torch.random.fork_rng(devices=[]):
-            torch.manual_seed(seed)
-            head = nn.Sequential(nn.BatchNorm2d(dim), nn.Conv2d(dim, n_classes, 1))
-        head.to(device)
-        generator = torch.Generator().manual_seed(seed)
+        heads = []
+        for draw in draws:
+            with torch.random.fork_rng(devices=[]):
+                torch.manual_seed(draw.seed)
+                heads.append(nn.Sequential(nn.BatchNorm2d(dim), nn.Conv2d(dim, n_classes, 1)))
+        stacked = StackedHeads(heads).to(device)
         labels = resident(_resize_masks(train, self.label_size), device)
         values = resident(train.values, device)
-        val_values = resident(val.values, device)
-        val_masks = [torch.from_numpy(np.ascontiguousarray(target)) for target in val.targets]
-        batches = torch.randint(len(labels), (self.steps, self.batch_size), generator=generator)
+        validation = _validation(val, draws, device)
+        batches = batch_positions(draws, self.steps, self.batch_size)
         value_batches, label_batches = batches.to(values.device), batches.to(labels.device)
-        optimizer = torch.optim.AdamW(head.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        optimizer = torch.optim.AdamW(
+            stacked.parameters(), lr=self.lr, weight_decay=self.weight_decay
+        )
         schedule = torch.optim.lr_scheduler.LambdaLR(
             optimizer, lambda step: 0.5 * (1 + math.cos(math.pi * step / self.steps))
         )
         primary = spec.primary_metric
+        size = (self.label_size, self.label_size)
 
-        best_state = {k: v.clone() for k, v in head.state_dict().items()}
-        best_score = float("nan")
-        stalled = 0
+        repeats = len(draws)
+        best_states = [stacked.member(index).state_dict() for index in range(repeats)]
+        best_scores = [float("nan")] * repeats
+        stalled = [0] * repeats
+        active = [True] * repeats
+        step = 0
+        training = torch.arange(repeats)
         for step in range(1, self.steps + 1):
-            head.train()
-            logits = head(values[value_batches[step - 1]].to(device).float())
+            stacked.train()
+            logits = stacked(values[value_batches[step - 1]].to(device).float())
+            # Repeats that stopped keep their checkpoint, so only those still training pay for
+            # the loss at label resolution.
             logits = F.interpolate(
-                logits,
-                size=(self.label_size, self.label_size),
+                logits[:, training.to(device)].flatten(1, 2),
+                size=size,
                 mode="bilinear",
                 align_corners=False,
-            )
-            target = labels[label_batches[step - 1]].to(device)
-            loss = (
-                F.binary_cross_entropy_with_logits(logits, target.float())
-                if multilabel
-                else F.cross_entropy(logits, target.long())
-            )
+            ).view(-1, len(training), n_classes, *size)
+            rows = label_batches[step - 1][:, training.to(label_batches.device)]
+            target = labels[rows].to(device)
+            # Every repeat averages over the same number of pixels, so the sum of their means is
+            # the mean over all of them times the number of repeats.
+            if multilabel:
+                loss = F.binary_cross_entropy_with_logits(logits, target.float())
+            else:
+                loss = F.cross_entropy(logits.flatten(0, 1), target.flatten(0, 1).long())
             optimizer.zero_grad(set_to_none=True)
-            torch.autograd.backward(loss)
+            torch.autograd.backward(loss * len(training))
             optimizer.step()
             schedule.step()
-            if step % self.eval_every == 0 or step == self.steps:
+            if step % self.eval_every and step != self.steps:
+                continue
+            for index, draw in enumerate(draws):
+                if not active[index]:
+                    continue
+                head = stacked.member(index)
+                held_out, val_values, val_masks = validation[index]
                 if primary == "dice":
                     dice = _device_dice(
                         head,
@@ -315,22 +367,96 @@ class LinearSegmentation(Protocol):
                     current = {primary: dice}
                 else:
                     maps = _probability_maps(
-                        head, val_values, val.targets, device, multilabel=multilabel
+                        head, val_values, held_out.targets, device, multilabel=multilabel
                     )
-                    current = score(spec.kind, maps, val.targets, n_classes, [primary])
-                stalled += 1
-                if better(current[primary], best_score, primary):
-                    best_score, stalled = current[primary], 0
-                    best_state = {k: v.clone() for k, v in head.state_dict().items()}
+                    current = score(spec.kind, maps, held_out.targets, n_classes, [primary])
+                stalled[index] += 1
+                if better(current[primary], best_scores[index], primary):
+                    best_scores[index], stalled[index] = current[primary], 0
+                    best_states[index] = head.state_dict()
                 log.info(
                     "probe validated",
                     protocol=self.name,
+                    seed=draw.seed,
                     step=step,
                     steps=self.steps,
                     score=round(current[primary], 4),
-                    best=round(best_score, 4),
+                    best=round(best_scores[index], 4),
                 )
-                if stalled >= self.patience and step >= self.min_steps:
-                    break
-        head.load_state_dict(best_state)
-        return _probability_maps(head, test.values, test.targets, device, multilabel=multilabel)
+                if stalled[index] >= self.patience and step >= self.min_steps:
+                    active[index] = False
+            if not any(active):
+                break
+            training = torch.tensor([index for index in range(repeats) if active[index]])
+        chosen = []
+        for index, state in enumerate(best_states):
+            head = stacked.member(index)
+            head.load_state_dict(state)
+            chosen.append(head)
+        log.info(
+            "probes trained",
+            protocol=self.name,
+            runs=repeats,
+            steps=step,
+            seconds=round(time.monotonic() - began, 1),
+        )
+        return iter(
+            [
+                _probability_maps(head, test.values, test.targets, device, multilabel=multilabel)
+                for head in chosen
+            ]
+        )
+
+
+def batch_positions(draws: Sequence[Draw], steps: int, batch_size: int) -> torch.Tensor:
+    """Training positions of every step and repeat, as each repeat would draw them alone.
+
+    Every repeat draws its batches uniformly with replacement from its own subset, with a
+    generator seeded by its seed, and its positions in the subset are mapped back to positions in
+    the whole partition.
+
+    Args:
+        draws: Seed and samples of every repeat.
+        steps: Number of optimization steps.
+        batch_size: Number of samples per step and repeat.
+
+    Returns:
+        Positions in the training partition of shape `(steps, batch_size, S)` for `S` repeats.
+    """
+    columns = []
+    for draw in draws:
+        generator = torch.Generator().manual_seed(draw.seed)
+        subset = torch.as_tensor(draw.train, dtype=torch.long)
+        columns.append(subset[torch.randint(len(subset), (steps, batch_size), generator=generator)])
+    return torch.stack(columns, dim=2)
+
+
+def _validation(
+    val: Features, draws: Sequence[Draw], device: torch.device
+) -> list[tuple[Features, torch.Tensor, list[torch.Tensor]]]:
+    """Validation features of every repeat, with their values placed and their masks as tensors.
+
+    Repeats validated on the whole partition share one copy of it on the device.
+
+    Args:
+        val: Whole validation partition.
+        draws: Seed and samples of every repeat.
+        device: Device on which the heads are validated.
+
+    Returns:
+        For every repeat its validation features, their values placed by `resident` and their
+        masks as tensors on the host.
+    """
+    whole: tuple[Features, torch.Tensor, list[torch.Tensor]] | None = None
+    result = []
+    for draw in draws:
+        if draw.val is None and whole is not None:
+            result.append(whole)
+            continue
+        held_out = val if draw.val is None else val.subset(draw.val)
+        masks = [torch.from_numpy(np.ascontiguousarray(t)) for t in held_out.targets]
+        entry = (held_out, resident(held_out.values, device), masks)
+        if draw.val is None:
+            whole = entry
+        result.append(entry)
+    return result

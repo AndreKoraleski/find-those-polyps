@@ -10,6 +10,8 @@ Predicted rows insert the score after the class.
 """
 
 import math
+import time
+from collections.abc import Iterator, Sequence
 from typing import ClassVar
 
 import numpy as np
@@ -21,8 +23,9 @@ from torch import nn
 from torchvision.ops import batched_nms, sigmoid_focal_loss
 
 from find_those_polyps.evaluation.features import Features
-from find_those_polyps.evaluation.protocols.base import Protocol, better
-from find_those_polyps.evaluation.protocols.segmentation import resident
+from find_those_polyps.evaluation.protocols.base import Draw, Protocol, better
+from find_those_polyps.evaluation.protocols.heads import StackedHeads
+from find_those_polyps.evaluation.protocols.segmentation import batch_positions, resident
 from find_those_polyps.logging import get_logger
 from find_those_polyps.metrics import score
 from find_those_polyps.tasks.schema import TaskKind, TaskSpec
@@ -284,95 +287,195 @@ class LinearDetection(Protocol):
             One table of scored boxes of shape `(R, 6)` per test image, with rows class, score,
             x0, y0, x1, y1 and corners normalized by the image size.
         """
+        draw = Draw(seed, np.arange(len(train.targets)))
+        return next(self.predict_runs(train, val, test, spec, [draw], device=device))
+
+    def predict_runs(
+        self,
+        train: Features,
+        val: Features,
+        test: Features,
+        spec: TaskSpec,
+        draws: Sequence[Draw],
+        *,
+        device: torch.device,
+    ) -> Iterator[list[NDArray[np.float64]]]:
+        """Train the heads of every repeat at once and detect on `test` with each.
+
+        The heads are stacked by `StackedHeads`, so every step trains all of them in the same
+        kernels, each on its own batch drawn from its own subset with its own seed, as `predict`
+        trains one. Each repeat is validated on its own subset and stops on its own, after which
+        its checkpoint no longer changes, and training ends once every repeat has stopped.
+
+        Args:
+            train: Whole dense training partition of shape `(N, D, h, w)` with its box tables.
+            val: Whole dense validation partition with its box tables.
+            test: Dense test features of shape `(M, D, h, w)`.
+            spec: Task specification whose classes include the background first.
+            draws: Seed and samples of every repeat.
+            device: Device on which the heads are trained.
+
+        Returns:
+            The test detections of every repeat in the order of `draws`, as `predict` returns
+            them.
+        """
+        began = time.monotonic()
         n_classes = len(spec.classes)
         n_objects = n_classes - 1
         dim = train.values.shape[1]
-        with torch.random.fork_rng(devices=[]):
-            torch.manual_seed(seed)
-            layer = nn.Conv2d(dim, n_objects + 5, self.kernel, padding=self.kernel // 2)
-            head = nn.Sequential(nn.BatchNorm2d(dim), layer)
-            prior = -math.log((1 - 0.01) / 0.01)
-            assert layer.bias is not None
-            with torch.no_grad():
-                layer.bias[:n_objects] = prior
-        head.to(device)
-        generator = torch.Generator().manual_seed(seed)
+        heads = []
+        for draw in draws:
+            with torch.random.fork_rng(devices=[]):
+                torch.manual_seed(draw.seed)
+                layer = nn.Conv2d(dim, n_objects + 5, self.kernel, padding=self.kernel // 2)
+                head = nn.Sequential(nn.BatchNorm2d(dim), layer)
+                prior = -math.log((1 - 0.01) / 0.01)
+                assert layer.bias is not None
+                with torch.no_grad():
+                    layer.bias[:n_objects] = prior
+            heads.append(head)
+        stacked = StackedHeads(heads).to(device)
         classes, assigned, positive = (part.to(device) for part in self._targets(train, n_objects))
         whole = torch.tensor([0.0, 0.0, 1.0, 1.0], device=device)[:, None, None]
         boxes = torch.where(positive[:, None], assigned, whole)
         values = resident(train.values, device)
-        val_values = resident(val.values, device)
-        batches = torch.randint(len(values), (self.steps, self.batch_size), generator=generator)
+        validation = _validation(val, draws, device)
+        batches = batch_positions(draws, self.steps, self.batch_size)
         value_batches, target_batches = batches.to(values.device), batches.to(device)
-        optimizer = torch.optim.AdamW(head.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        optimizer = torch.optim.AdamW(
+            stacked.parameters(), lr=self.lr, weight_decay=self.weight_decay
+        )
         schedule = torch.optim.lr_scheduler.LambdaLR(
             optimizer, lambda step: 0.5 * (1 + math.cos(math.pi * step / self.steps))
         )
         primary = spec.primary_metric
-        best_state = {k: v.clone() for k, v in head.state_dict().items()}
-        best_score = float("nan")
-        stalled = 0
+
+        repeats = len(draws)
+        best_states = [stacked.member(index).state_dict() for index in range(repeats)]
+        best_scores = [float("nan")] * repeats
+        stalled = [0] * repeats
+        active = [True] * repeats
+        step = 0
+        training = torch.arange(repeats, device=device)
         for step in range(1, self.steps + 1):
-            head.train()
-            index = target_batches[step - 1]
-            output = head(values[value_batches[step - 1]].to(device).float())
+            stacked.train()
+            # Repeats that stopped keep their checkpoint, so the loss covers the others only.
+            index = target_batches[step - 1][:, training]
+            output = stacked(values[value_batches[step - 1]].to(device).float())[:, training]
             loss = _loss(output, classes[index], boxes[index], positive[index])
             optimizer.zero_grad(set_to_none=True)
             torch.autograd.backward(loss)
             optimizer.step()
             schedule.step()
-            if step % self.eval_every == 0 or step == self.steps:
+            if step % self.eval_every and step != self.steps:
+                continue
+            for repeat, draw in enumerate(draws):
+                if not active[repeat]:
+                    continue
+                head = stacked.member(repeat)
+                held_out, val_values = validation[repeat]
                 detections = self._detections(head, val_values, device)
-                current = score(spec.kind, detections, val.targets, n_classes, [primary])
-                stalled += 1
-                if better(current[primary], best_score, primary):
-                    best_score, stalled = current[primary], 0
-                    best_state = {k: v.clone() for k, v in head.state_dict().items()}
+                current = score(spec.kind, detections, held_out.targets, n_classes, [primary])
+                stalled[repeat] += 1
+                if better(current[primary], best_scores[repeat], primary):
+                    best_scores[repeat], stalled[repeat] = current[primary], 0
+                    best_states[repeat] = head.state_dict()
                 log.info(
                     "probe validated",
                     protocol=self.name,
+                    seed=draw.seed,
                     step=step,
                     steps=self.steps,
                     score=round(current[primary], 4),
-                    best=round(best_score, 4),
+                    best=round(best_scores[repeat], 4),
                 )
-                if stalled >= self.patience and step >= self.min_steps:
-                    break
-        head.load_state_dict(best_state)
-        return self._detections(head, test.values, device)
+                if stalled[repeat] >= self.patience and step >= self.min_steps:
+                    active[repeat] = False
+            if not any(active):
+                break
+            training = torch.tensor(
+                [repeat for repeat in range(repeats) if active[repeat]], device=device
+            )
+        chosen = []
+        for repeat, state in enumerate(best_states):
+            head = stacked.member(repeat)
+            head.load_state_dict(state)
+            chosen.append(head)
+        log.info(
+            "probes trained",
+            protocol=self.name,
+            runs=repeats,
+            steps=step,
+            seconds=round(time.monotonic() - began, 1),
+        )
+        return iter([self._detections(head, test.values, device) for head in chosen])
+
+
+def _validation(
+    val: Features, draws: Sequence[Draw], device: torch.device
+) -> list[tuple[Features, torch.Tensor]]:
+    """Validation features of every repeat with their values placed on the device.
+
+    Repeats validated on the whole partition share one copy of it on the device.
+
+    Args:
+        val: Whole validation partition.
+        draws: Seed and samples of every repeat.
+        device: Device on which the heads are validated.
+
+    Returns:
+        For every repeat its validation features and their values placed by `resident`.
+    """
+    whole: tuple[Features, torch.Tensor] | None = None
+    result = []
+    for draw in draws:
+        if draw.val is None and whole is not None:
+            result.append(whole)
+            continue
+        held_out = val if draw.val is None else val.subset(draw.val)
+        entry = (held_out, resident(held_out.values, device))
+        if draw.val is None:
+            whole = entry
+        result.append(entry)
+    return result
 
 
 def _loss(
     output: torch.Tensor, classes: torch.Tensor, boxes: torch.Tensor, positive: torch.Tensor
 ) -> torch.Tensor:
-    """Focal, overlap and centerness losses of a batch, each summed and divided by its positives.
+    """Sum over repeats of the focal, overlap and centerness losses of each repeat's batch.
 
-    The focal loss is summed over every cell and class. The overlap and centerness terms are
-    computed at every cell and weighted by `positive`, which equals their sum over positive cells
-    without indexing by a mask that the host must read. The number of positives is clamped at one.
-    Cells without an object hold the whole image in `boxes`, which keeps their discarded terms
-    finite.
+    For every repeat the focal loss is summed over every cell and class. The overlap and
+    centerness terms are computed at every cell and weighted by `positive`, which equals their sum
+    over positive cells without indexing by a mask that the host must read. Each sum is divided by
+    the number of positives of the repeat, clamped at one. Cells without an object hold the whole
+    image in `boxes`, which keeps their discarded terms finite. Summing over repeats leaves the
+    gradient of each repeat's head equal to that of its own loss.
 
     Args:
-        output: Head output of shape `(B, K + 5, h, w)`, holding the class logits, the log
-            distances to the four sides and the centerness logit.
-        classes: Class indicators of shape `(B, K, h, w)`.
-        boxes: Assigned corners of shape `(B, 4, h, w)`, normalized by the image size.
-        positive: Positive cells of shape `(B, h, w)`.
+        output: Head output of shape `(B, S, K + 5, h, w)` for `S` repeats, holding the class
+            logits, the log distances to the four sides and the centerness logit.
+        classes: Class indicators of shape `(B, S, K, h, w)`.
+        boxes: Assigned corners of shape `(B, S, 4, h, w)`, normalized by the image size.
+        positive: Positive cells of shape `(B, S, h, w)`.
 
     Returns:
         Scalar loss of the batch.
     """
-    n_objects = classes.shape[1]
+    n_objects = classes.shape[2]
     weight = positive.float()
-    n_positive = weight.sum().clamp(min=1.0)
-    loss: torch.Tensor = sigmoid_focal_loss(output[:, :n_objects], classes, reduction="sum")
-    loss = loss / n_positive
-    overlap = _overlap_loss(_decode(output[:, n_objects : n_objects + 4]), boxes)
+    n_positive = weight.sum(dim=(0, 2, 3)).clamp(min=1.0)
+    flat, flat_boxes = output.flatten(0, 1), boxes.flatten(0, 1)
+    focal = sigmoid_focal_loss(flat[:, :n_objects], classes.flatten(0, 1), reduction="none")
+    overlap = _overlap_loss(_decode(flat[:, n_objects : n_objects + 4]), flat_boxes)
     centre = F.binary_cross_entropy_with_logits(
-        output[:, -1], _centre_targets(boxes), reduction="none"
+        flat[:, -1], _centre_targets(flat_boxes), reduction="none"
     )
-    return loss + ((overlap + centre) * weight).sum() / n_positive
+    terms = ((overlap + centre) * weight.flatten(0, 1)).view(weight.shape)
+    focal = focal.view(classes.shape)
+    sums = focal.sum(dim=(0, 2, 3, 4)) + terms.sum(dim=(0, 2, 3))
+    total: torch.Tensor = (sums / n_positive).sum()
+    return total
 
 
 def _overlap_loss(predicted: torch.Tensor, truth: torch.Tensor, eps: float = 1e-7) -> torch.Tensor:

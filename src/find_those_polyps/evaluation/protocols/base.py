@@ -6,10 +6,13 @@ fields, so that two protocols with equal settings share one hash.
 """
 
 from abc import ABC, abstractmethod
-from typing import ClassVar
+from collections.abc import Iterator, Sequence
+from typing import ClassVar, NamedTuple
 
+import numpy as np
 import pandas as pd
 import torch
+from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
 from find_those_polyps.evaluation.features import Features
@@ -17,6 +20,34 @@ from find_those_polyps.metrics import Predictions, higher_is_better
 from find_those_polyps.metrics.bootstrap import Statistic, mean_statistic
 from find_those_polyps.tasks.schema import TaskKind, TaskSpec
 from find_those_polyps.utils.hashing import canonical_sha256
+
+
+class Draw(NamedTuple):
+    """Seed and samples of one repeat of a protocol.
+
+    Attributes:
+        seed: Seed of every random choice of the repeat.
+        train: Positions of the training samples of the repeat in the training partition.
+        val: Positions of its validation samples in the validation partition, or None for the
+            whole partition.
+    """
+
+    seed: int
+    train: NDArray[np.intp]
+    val: NDArray[np.intp] | None = None
+
+    def partitions(self, train: Features, val: Features) -> tuple[Features, Features]:
+        """Training and validation features of the repeat.
+
+        Args:
+            train: Whole training partition.
+            val: Whole validation partition.
+
+        Returns:
+            The training subset and the validation subset, or the whole validation partition
+            itself when `val` is None.
+        """
+        return train.subset(self.train), val if self.val is None else val.subset(self.val)
 
 
 class Protocol(BaseModel, ABC):
@@ -79,6 +110,37 @@ class Protocol(BaseModel, ABC):
             `(C, H, W)` or one table of scored boxes per test image, as `score` expects for the
             task kind.
         """
+
+    def predict_runs(
+        self,
+        train: Features,
+        val: Features,
+        test: Features,
+        spec: TaskSpec,
+        draws: Sequence[Draw],
+        *,
+        device: torch.device,
+    ) -> Iterator[Predictions]:
+        """Predictions of every repeat, each fitted on its own subsets and seed.
+
+        Repeats are fitted one after another by `predict`, each when its predictions are
+        requested. Protocols whose predictors are too small to occupy the device override this
+        to fit every repeat at once.
+
+        Args:
+            train: Whole training partition, from which every repeat takes its subset.
+            val: Whole validation partition, from which every repeat takes its subset.
+            test: Features of the partition to predict.
+            spec: Task specification with the classes and the primary metric.
+            draws: Seed and samples of every repeat.
+            device: Device on which the predictors are fitted.
+
+        Yields:
+            The predictions of every repeat in the order of `draws`, as `predict` returns them.
+        """
+        for draw in draws:
+            subset, held_out = draw.partitions(train, val)
+            yield self.predict(subset, held_out, test, spec, seed=draw.seed, device=device)
 
 
 class DirectProtocol(Protocol):

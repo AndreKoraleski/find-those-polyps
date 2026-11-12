@@ -8,7 +8,7 @@ so that a streamed dataset is downloaded once for all of them.
 
 import os
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from datetime import UTC, datetime
 from difflib import get_close_matches
 from fnmatch import fnmatch
@@ -26,6 +26,7 @@ from find_those_polyps.data.paths import default_data_root
 from find_those_polyps.evaluation.features import Features, extract_many
 from find_those_polyps.evaluation.leaderboard import Leaderboard, LeaderboardRow
 from find_those_polyps.evaluation.protocols import PROTOCOLS, DirectProtocol, Protocol
+from find_those_polyps.evaluation.protocols.base import Draw
 from find_those_polyps.evaluation.records import (
     classification_records,
     detection_records,
@@ -317,11 +318,76 @@ def budget_validation(val: Features, budget: Budget, spec: TaskSpec, seed: int) 
     Returns:
         The validation features restricted to the drawn samples.
     """
+    indices = validation_indices(val, budget, spec, seed)
+    return val if indices is None else val.subset(indices)
+
+
+def validation_indices(
+    val: Features, budget: Budget, spec: TaskSpec, seed: int
+) -> NDArray[np.intp] | None:
+    """Positions of the validation subset that `budget_validation` keeps.
+
+    Args:
+        val: Validation features.
+        budget: Label budget of the run.
+        spec: Task, whose kind decides whether the draw is stratified by class.
+        seed: Seed of the draw, the seed of the run.
+
+    Returns:
+        Positions into the validation partition, or None when the whole partition is kept.
+    """
     n_val = len(val.targets)
     if budget.is_full or budget.size(n_val, len(spec.classes)) >= n_val:
-        return val
+        return None
     labels = val.labels() if spec.kind in SINGLE_LABEL else None
-    return val.subset(budget_indices(budget, n_val, labels, seed))
+    return budget_indices(budget, n_val, labels, seed)
+
+
+def _repeats(
+    protocol: Protocol,
+    train: Features,
+    val: Features,
+    test: Features,
+    spec: TaskSpec,
+    draws: Sequence[Draw],
+    *,
+    device: torch.device,
+    workers: int,
+) -> Iterator[tuple[int, dict[str, float], pd.DataFrame, Statistic]]:
+    """Metrics, per image records and primary statistic of every repeat of a protocol, lazily.
+
+    Direct protocols measure each repeat in turn. Other protocols fit their repeats through
+    `predict_runs`, which may fit all of them before the first is scored.
+
+    Args:
+        protocol: Protocol to run.
+        train: Whole training partition.
+        val: Whole validation partition.
+        test: Test partition.
+        spec: Task specification.
+        draws: Seed and samples of every repeat.
+        device: Device of the computation.
+        workers: Worker processes of the per image segmentation metrics.
+
+    Yields:
+        The seed, the test metrics, the per image records and the primary statistic of every
+        repeat in the order of `draws`.
+    """
+    if isinstance(protocol, DirectProtocol):
+        for draw in draws:
+            subset, held_out = draw.partitions(train, val)
+            metrics, records = protocol.measure(
+                subset, held_out, test, spec, seed=draw.seed, device=device
+            )
+            statistic = protocol.statistic(records)
+            records.insert(0, "sample_id", list(test.ids) or range(len(records)))
+            records.insert(1, "path", list(test.paths) or "")
+            yield draw.seed, metrics, records, statistic
+        return
+    predictions = protocol.predict_runs(train, val, test, spec, draws, device=device)
+    for draw, prediction in zip(draws, predictions, strict=True):
+        metrics, records = score_run(spec, prediction, test, workers=workers)
+        yield draw.seed, metrics, records, primary_statistic(spec, prediction, records, test)
 
 
 def primary_statistic(
@@ -725,25 +791,18 @@ def evaluate_task(
                 budget=str(budget),
                 runs=repeats,
             )
-            for seed in range(repeats):
-                run_began = time.monotonic()
-                subset = train.subset(budget_indices(budget, n_train, labels, seed))
-                held_out = budget_validation(val, budget, spec, seed)
-                if isinstance(protocol, DirectProtocol):
-                    metrics, run_records = protocol.measure(
-                        subset, held_out, test, spec, seed=seed, device=device
-                    )
-                    statistic = protocol.statistic(run_records)
-                    run_records.insert(0, "sample_id", list(test.ids) or range(len(run_records)))
-                    run_records.insert(1, "path", list(test.paths) or "")
-                else:
-                    predictions = protocol.predict(
-                        subset, held_out, test, spec, seed=seed, device=device
-                    )
-                    metrics, run_records = score_run(
-                        spec, predictions, test, workers=config.workers
-                    )
-                    statistic = primary_statistic(spec, predictions, run_records, test)
+            draws = [
+                Draw(
+                    seed,
+                    budget_indices(budget, n_train, labels, seed),
+                    validation_indices(val, budget, spec, seed),
+                )
+                for seed in range(repeats)
+            ]
+            run_began = time.monotonic()
+            for seed, metrics, run_records, statistic in _repeats(
+                protocol, train, val, test, spec, draws, device=device, workers=config.workers
+            ):
                 statistics.append(statistic)
                 runs.append(metrics)
                 run_records.insert(0, "protocol", protocol.name)
@@ -760,6 +819,7 @@ def evaluate_task(
                         seed=seed,
                         seconds=round(time.monotonic() - run_began, 1),
                     )
+                run_began = time.monotonic()
             interval = (
                 bootstrap_interval(
                     averaged(statistics), len(test.targets), resamples=config.bootstrap

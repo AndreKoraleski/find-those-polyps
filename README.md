@@ -164,7 +164,10 @@ Subsets are class stratified and nested within each budget family for a given se
 `shots:1` is contained in `shots:5` and `frac:0.01` in `frac:0.1`. Every reduced budget and every
 stochastic protocol is repeated over several seeds. Hyperparameters and checkpoints are selected on
 a validation subset drawn with the same budget rule, so that a few shot result never benefits from
-the full validation labels.
+the full validation labels. The dense probes train the heads of all seeds of a budget together, each
+on its own batches and subsets and each stopping on its own, which keeps the accelerator busy and
+matches separate training up to floating point rounding. Through checkpoint selection, rounding can
+still move a detection score within its spread over seeds.
 
 Canonical splits are built from the data and committed. A published test partition is used
 verbatim, and samples sharing a patient, video or lesion with it are excluded from training and
