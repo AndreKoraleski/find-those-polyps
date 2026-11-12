@@ -15,21 +15,31 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
-def resize(image: NDArray[np.uint8], size: int | tuple[int, int]) -> torch.Tensor:
+def resize(
+    image: NDArray[np.uint8],
+    size: int | tuple[int, int],
+    device: torch.device | str | None = None,
+) -> torch.Tensor:
     """Antialiased bilinear resize of an RGB image to a float tensor.
 
-    The aspect ratio is not preserved, so the image is stretched to the requested size.
+    The aspect ratio is not preserved, so the image is stretched to the requested size. With a
+    `device` the image is moved there in one byte per channel before it is converted and resized,
+    which spares the host the work on large images. The antialiasing of the accelerator differs
+    slightly from that of the host, so the result is close to the host result but not equal.
 
     Args:
         image: Image of shape (H, W, 3) with values in [0, 255].
         size: Output side in pixels for a square image, or its height and width.
+        device: Device on which to resize, the host when `None`.
 
     Returns:
-        A float32 tensor of shape (3, H', W') with values in [0, 1].
+        A float32 tensor of shape (3, H', W') with values in [0, 1], on `device` when given.
     """
     height, width = (size, size) if isinstance(size, int) else size
-    tensor = torch.from_numpy(np.ascontiguousarray(image)).permute(2, 0, 1)
-    tensor = tensor.unsqueeze(0).float().div(255)
+    tensor = torch.from_numpy(np.ascontiguousarray(image))
+    if device is not None:
+        tensor = tensor.to(device)
+    tensor = tensor.permute(2, 0, 1).unsqueeze(0).float().div(255)
     resized = F.interpolate(
         tensor,
         size=(height, width),
@@ -56,6 +66,6 @@ def normalize(
         The tensor of shape (3, H, W) with `mean` subtracted and divided by `std` channel by
         channel, in the dtype of `image`.
     """
-    mean_t = torch.tensor(mean, dtype=image.dtype).view(3, 1, 1)
-    std_t = torch.tensor(std, dtype=image.dtype).view(3, 1, 1)
+    mean_t = torch.tensor(mean, dtype=image.dtype, device=image.device).view(3, 1, 1)
+    std_t = torch.tensor(std, dtype=image.dtype, device=image.device).view(3, 1, 1)
     return (image - mean_t) / std_t

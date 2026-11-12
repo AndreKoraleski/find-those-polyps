@@ -119,6 +119,12 @@ model under the same task and protocol definitions. Tasks sharing images, such a
 tasks, encode them once per run, and the command ends with a summary of the full budget scores. The
 notebook [notebooks/evaluate.ipynb](notebooks/evaluate.ipynb) walks through a full evaluation.
 
+`--workers N` sets the host threads that preprocess images ahead of the device and the processes
+that compute the per image segmentation metrics, by default the number of processors up to eight,
+and `--prefetch` the batches prepared ahead, two by default. Neither changes any result.
+`--preprocess-on-device` resizes images on the accelerator, which helps with large images on fast
+devices but changes the features slightly, so they are cached apart from those resized on the host.
+
 ## Keeping test images out of pretraining
 
 An encoder is a black box, and nothing in its weights proves which images it was trained on. All

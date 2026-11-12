@@ -6,6 +6,7 @@ canonical test partition. Encoders evaluated together share one pass over the im
 so that a streamed dataset is downloaded once for all of them.
 """
 
+import os
 import time
 from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
@@ -19,7 +20,7 @@ import numpy as np
 import pandas as pd
 import torch
 from numpy.typing import NDArray
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, PositiveInt
 
 from find_those_polyps.data.paths import default_data_root
 from find_those_polyps.evaluation.features import Features, extract_many
@@ -65,6 +66,15 @@ def default_device() -> str:
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 
+def default_workers() -> int:
+    """Default number of host workers of an evaluation.
+
+    Returns:
+        The number of processors, at most eight, and at least one.
+    """
+    return min(8, os.cpu_count() or 1)
+
+
 class EvaluationError(RuntimeError):
     """Some tasks failed, while the results of the others were recorded on the leaderboard."""
 
@@ -108,6 +118,18 @@ class EvaluationConfig(BaseModel):
         limit: Maximum number of samples kept in each partition for a quick smoke test, whose
             results go to a `smoke` folder beside the leaderboard and the per image results.
             `None`, the default, keeps every sample.
+        workers: Host workers keeping the device busy, the number of processors up to eight by
+            default. As many threads preprocess images ahead of the device and as many processes
+            compute the per image segmentation metrics, and zero does both in the calling
+            thread. Results do not depend on it.
+        prefetch: Batches of each encoder prepared ahead of the one being encoded when `workers`
+            is positive, 2 by default.
+        preprocess_on_device: Whether encoders resize their images on `device` instead of the
+            host, false by default. It applies to encoders whose `preprocess` honours
+            `Encoder.preprocess_device`, the reference encoders and the default one among them.
+            It is faster for large images, but the antialiasing of the accelerator differs
+            slightly from that of the host, by about one part in a thousand of the features of a
+            ResNet-50, so those features are cached apart.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -129,6 +151,9 @@ class EvaluationConfig(BaseModel):
     resume: bool = False
     bootstrap: int = Field(default=1000, ge=0)
     limit: PositiveInt | None = None
+    workers: NonNegativeInt = Field(default_factory=default_workers)
+    prefetch: PositiveInt = 2
+    preprocess_on_device: bool = False
 
 
 def _unknown(kind: str, names: Iterable[str], known: Iterable[str]) -> ValueError:
@@ -225,7 +250,7 @@ def resolve_protocols(names: Sequence[str]) -> list[Protocol]:
 
 
 def score_run(
-    spec: TaskSpec, predictions: Predictions, test: Features
+    spec: TaskSpec, predictions: Predictions, test: Features, workers: int = 0
 ) -> tuple[dict[str, float], pd.DataFrame]:
     """Aggregated test metrics and the per image records of one run.
 
@@ -238,6 +263,7 @@ def score_run(
             maps or one table of scored boxes of shape (M, 6) per image, depending on the task
             kind.
         test: Test features whose targets, identifiers and paths are used.
+        workers: Processes computing the per image segmentation metrics, none by default.
 
     Returns:
         The value of every metric and one record per test image, starting with its identifier
@@ -253,7 +279,9 @@ def score_run(
         masks = [np.asarray(t) for t in test.targets]
         maps = cast(Iterable[NDArray[np.float32]], predictions)
         multilabel = spec.kind is TaskKind.MULTILABEL_SEGMENTATION
-        records = pd.DataFrame(per_image(maps, masks, n_classes, multilabel=multilabel))
+        records = pd.DataFrame(
+            per_image(maps, masks, n_classes, multilabel=multilabel, workers=workers)
+        )
         names = metric_names(spec.kind, n_classes)
         metrics = {name: float(records[name].mean()) for name in names if name in records}
     elif spec.kind is TaskKind.DETECTION:
@@ -584,6 +612,8 @@ class TaskFeatures:
             device=torch.device(self.config.device),
             description=f"{self.task.spec.id} {split}",
             stores=[self.stores[i] for i in members],
+            workers=self.config.workers,
+            prefetch=self.config.prefetch,
         )
 
     def _extract(self, members: Sequence[int], split: Split, dense: bool) -> list[Features]:
@@ -710,7 +740,9 @@ def evaluate_task(
                     predictions = protocol.predict(
                         subset, held_out, test, spec, seed=seed, device=device
                     )
-                    metrics, run_records = score_run(spec, predictions, test)
+                    metrics, run_records = score_run(
+                        spec, predictions, test, workers=config.workers
+                    )
                     statistic = primary_statistic(spec, predictions, run_records, test)
                 statistics.append(statistic)
                 runs.append(metrics)
@@ -942,6 +974,9 @@ def evaluate(
     if config.limit is not None:
         config = smoke_paths(config)
         log.warning("smoke test on a few samples per partition", limit=config.limit)
+    if config.preprocess_on_device and torch.device(config.device).type != "cpu":
+        for model in models:
+            model.preprocess_device = config.device
     configs = [
         config.model_copy(update={"pretrained_on": declaration(model, config) or ()})
         for model in models

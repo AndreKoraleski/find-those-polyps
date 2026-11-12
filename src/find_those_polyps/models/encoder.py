@@ -123,12 +123,16 @@ class Encoder(nn.Module, ABC):
             none and `None`, the default, when undeclared.
         image_size: Side in pixels of the square input of the default `preprocess`, 224 by
             default.
+        preprocess_device: Device on which the default `preprocess` resizes, the host when `None`,
+            the default. Resizing on the accelerator is faster for large images but slightly
+            different, so a device enters the fingerprint and keeps its features apart.
     """
 
     name: str
     description: str
     pretrained_on: tuple[str, ...] | None = None
     image_size: int = 224
+    preprocess_device: str | None = None
 
     def preprocess(self, image: NDArray[np.uint8]) -> torch.Tensor:
         """Map an RGB image to a model input tensor.
@@ -140,7 +144,7 @@ class Encoder(nn.Module, ABC):
             By default a float tensor of shape (3, `image_size`, `image_size`) with values in
             [0, 1].
         """
-        return resize(image, self.image_size)
+        return resize(image, self.image_size, device=self.preprocess_device)
 
     @abstractmethod
     def forward(self, images: torch.Tensor) -> Any:
@@ -193,12 +197,17 @@ class Encoder(nn.Module, ABC):
 
         Features cached on disk are keyed by it, so that changing the weights or the code of the
         encoder never reuses stale features. Stages whose code cannot be read are hashed by their
-        representation, which may differ between processes and then disables the reuse.
+        representation, which may differ between processes and then disables the reuse. A
+        `preprocess_device` enters the hash when set, leaving the fingerprints of encoders that
+        preprocess on the host unchanged.
 
         Returns:
             The hexadecimal SHA-256 digest of those contents.
         """
-        digest = hashlib.sha256(f"{self.name}:{self.image_size}".encode())
+        header = f"{self.name}:{self.image_size}"
+        if self.preprocess_device is not None:
+            header += f":{torch.device(self.preprocess_device).type}"
+        digest = hashlib.sha256(header.encode())
         for source in self._sources():
             digest.update(source.encode())
         for chunk in _weights(self._weighted()):
@@ -404,11 +413,39 @@ def run(
         ValueError: If the features do not have the expected number of dimensions or one row per
             image.
     """
-    batch = torch.stack([encoder.preprocess(image) for image in images]).to(device)
+    return encode(encoder, [encoder.preprocess(image) for image in images], device, dense=dense)
+
+
+def encode(
+    encoder: Encoder,
+    inputs: Sequence[torch.Tensor],
+    device: torch.device,
+    *,
+    dense: bool = False,
+) -> torch.Tensor:
+    """Apply `forward` and the postprocessing to a batch of preprocessed images.
+
+    Separating this stage from `preprocess` lets callers prepare later batches while the device
+    computes the current one.
+
+    Args:
+        encoder: Encoder whose stages are applied in turn.
+        inputs: B outputs of `preprocess`, stacked and moved to `device`.
+        device: Device on which the stacked inputs are placed before `forward`.
+        dense: Whether to return dense feature maps instead of global embeddings.
+
+    Returns:
+        A tensor of shape (B, D), or (B, D, h, w) when `dense` is set.
+
+    Raises:
+        ValueError: If the features do not have the expected number of dimensions or one row per
+            image.
+    """
+    batch = torch.stack(list(inputs)).to(device)
     output = encoder(batch)
     features = encoder.postprocess_dense(output) if dense else encoder.postprocess(output)
     expected = 4 if dense else 2
-    if features.ndim != expected or features.shape[0] != len(images):
+    if features.ndim != expected or features.shape[0] != len(inputs):
         shape = "(B, D, h, w)" if dense else "(B, D)"
         raise ValueError(f"{encoder.name} produced {tuple(features.shape)}, expected {shape}")
     return features

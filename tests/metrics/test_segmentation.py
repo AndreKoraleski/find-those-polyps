@@ -173,3 +173,23 @@ def test_multilabel_masks_are_scored_per_overlapping_class(disc: np.ndarray) -> 
     probability = np.stack([disc, ~disc, np.zeros_like(disc)]).astype(np.float32)
     (record,) = per_image([probability], [target], 3, ["dice"], multilabel=True)
     assert record["dice"] == pytest.approx(0.5)
+
+
+def test_per_image_metrics_in_processes_match_the_serial_ones() -> None:
+    rng = np.random.default_rng(3)
+    targets, maps = [], []
+    for _ in range(6):
+        mask = np.zeros((40, 50), dtype=np.uint8)
+        y, x = rng.integers(5, 25, 2)
+        mask[y : y + 12, x : x + 15] = 1
+        fore = np.clip(mask * 0.7 + rng.uniform(0, 0.4, mask.shape), 0, 1).astype(np.float32)
+        maps.append(np.stack([1 - fore, fore]))
+        targets.append(mask)
+    serial = per_image(maps, targets, 2)
+    parallel = per_image(iter(maps), targets, 2, workers=2)
+    assert len(parallel) == len(serial)
+    for alone, together in zip(serial, parallel, strict=True):
+        assert alone.keys() == together.keys()
+        assert all(
+            alone[k] == together[k] or (np.isnan(alone[k]) and np.isnan(together[k])) for k in alone
+        )

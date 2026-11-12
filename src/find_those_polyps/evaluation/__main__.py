@@ -150,6 +150,20 @@ def parser() -> argparse.ArgumentParser:
     add("--dry-run", action="store_true", help="list the selected tasks and exit")
     add("--resume", action="store_true", help="skip settings already on the leaderboard")
     add("--limit", type=int, default=None, help="smoke test on at most N images per partition")
+    add(
+        "--workers",
+        type=int,
+        default=None,
+        help="host threads and processes feeding the device, default the CPUs up to 8, 0 serial",
+    )
+    add(
+        "--prefetch", type=int, default=None, help="batches prepared ahead of the device, default 2"
+    )
+    add(
+        "--preprocess-on-device",
+        action="store_true",
+        help="resize images on the device, faster for large images, features cached apart",
+    )
     add("--log-level", default="INFO")
     return result
 
@@ -193,6 +207,9 @@ def main(argv: list[str] | None = None) -> int:
         "feature_cache": False if args.no_feature_cache else None,
         "resume": True if args.resume else None,
         "limit": args.limit,
+        "workers": args.workers,
+        "prefetch": args.prefetch,
+        "preprocess_on_device": True if args.preprocess_on_device else None,
     }
     try:
         config = EvaluationConfig.model_validate({k: v for k, v in fields.items() if v is not None})

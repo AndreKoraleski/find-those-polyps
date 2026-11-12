@@ -8,7 +8,10 @@ toolbox of that work. Masks are compared at native resolution, and boundary dist
 both in pixels and relative to the image diagonal.
 """
 
+import multiprocessing
+from collections import deque
 from collections.abc import Iterable, Sequence
+from concurrent.futures import Future, ProcessPoolExecutor
 
 import numpy as np
 from numpy.typing import NDArray
@@ -398,13 +401,74 @@ def saliency(probability: NDArray[np.float64], target: NDArray[np.bool_]) -> dic
     }
 
 
+_POOLS: dict[int, ProcessPoolExecutor] = {}
+"""Process pools computing per image metrics, kept for the life of the process by size."""
+
+
+def _pool(workers: int) -> ProcessPoolExecutor:
+    """Process pool of the given size, started once and reused.
+
+    Workers are spawned rather than forked, since the parent usually holds threads and an
+    accelerator context that a fork would copy in an inconsistent state.
+
+    Args:
+        workers: Number of worker processes.
+
+    Returns:
+        The shared pool of that size.
+    """
+    if workers not in _POOLS:
+        context = multiprocessing.get_context("spawn")
+        _POOLS[workers] = ProcessPoolExecutor(workers, mp_context=context)
+    return _POOLS[workers]
+
+
+def _record(
+    probability: NDArray[np.float32],
+    target: NDArray[np.integer],
+    n_classes: int,
+    wanted: frozenset[str],
+    multilabel: bool,
+) -> dict[str, float]:
+    """Requested metrics of one image, as described by `per_image`.
+
+    Args:
+        probability: Probability map of shape `(C, H, W)`.
+        target: Class mask of shape `(H, W)`, or stack of class masks of shape `(C, H, W)`.
+        n_classes: Number of classes `C`.
+        wanted: Names of the metrics to compute.
+        multilabel: Whether classes may overlap.
+
+    Returns:
+        The metrics of the image that apply to the task.
+    """
+    if multilabel:
+        masks = [(probability[c] > 0.5, target[c] > 0) for c in range(n_classes)]
+    elif n_classes == 2:
+        masks = [(probability[1] > probability[0], target == 1)]
+    else:
+        labels = probability.argmax(axis=0)
+        masks = [(labels == c, target == c) for c in range(1, n_classes)]
+    values: dict[str, float] = {}
+    if wanted & set(OVERLAP):
+        present = [pair for pair in masks if pair[0].any() or pair[1].any()]
+        chosen = present if len(masks) > 1 and present else masks
+        distances = bool(wanted & (set(BOUNDARY) | set(PIXEL)))
+        scores = [overlap(p, g, boundaries=distances) for p, g in chosen]
+        values |= {k: float(np.mean([s[k] for s in scores])) for k in scores[0]}
+    if n_classes == 2 and not multilabel and wanted & set(SALIENCY):
+        values |= saliency(probability[1].astype(np.float64), target == 1)
+    return {k: v for k, v in values.items() if k in wanted}
+
+
 def per_image(
     probabilities: Iterable[NDArray[np.float32]],
-    targets: Sequence[NDArray[np.int64]],
+    targets: Sequence[NDArray[np.integer]],
     n_classes: int,
     names: Sequence[str] | None = None,
     *,
     multilabel: bool = False,
+    workers: int = 0,
 ) -> list[dict[str, float]]:
     """Requested metrics of every image in a single pass over the probability maps.
 
@@ -415,6 +479,11 @@ def per_image(
     `multilabel` every class, the first included, is a separate binary mask in the target,
     predicted where its probability exceeds one half, and classes are averaged the same way.
 
+    The boundary distances and the saliency measures take a large share of an evaluation at
+    native resolution, so with positive `workers` the images are scored by that many processes,
+    at most two per worker in flight, which bounds the maps held in memory. Every image runs the
+    same computation, so the records are identical and in the same order.
+
     Args:
         probabilities: Probability maps of shape `(C, H, W)`, one per image.
         targets: Class masks of shape `(H, W)`, or stacks of class masks of shape `(C, H, W)`
@@ -422,30 +491,24 @@ def per_image(
         n_classes: Number of classes `C`, which for single label tasks includes the background.
         names: Metrics to compute, by default every overlap, saliency and pixel metric.
         multilabel: Whether classes may overlap.
+        workers: Processes scoring images in parallel, zero to score them in this process.
 
     Returns:
         One record per image with the requested metrics that apply to the task.
     """
-    wanted = set(names) if names is not None else set(OVERLAP) | set(SALIENCY) | set(PIXEL)
-    records = []
-    for probability, target in zip(probabilities, targets, strict=True):
-        if multilabel:
-            masks = [(probability[c] > 0.5, target[c] > 0) for c in range(n_classes)]
-        elif n_classes == 2:
-            masks = [(probability[1] > probability[0], target == 1)]
-        else:
-            labels = probability.argmax(axis=0)
-            masks = [(labels == c, target == c) for c in range(1, n_classes)]
-        values: dict[str, float] = {}
-        if wanted & set(OVERLAP):
-            present = [pair for pair in masks if pair[0].any() or pair[1].any()]
-            chosen = present if len(masks) > 1 and present else masks
-            distances = bool(wanted & (set(BOUNDARY) | set(PIXEL)))
-            scores = [overlap(p, g, boundaries=distances) for p, g in chosen]
-            values |= {k: float(np.mean([s[k] for s in scores])) for k in scores[0]}
-        if n_classes == 2 and not multilabel and wanted & set(SALIENCY):
-            values |= saliency(probability[1].astype(np.float64), target == 1)
-        records.append({k: v for k, v in values.items() if k in wanted})
+    wanted = frozenset(names) if names is not None else frozenset(OVERLAP + SALIENCY + PIXEL)
+    pairs = zip(probabilities, targets, strict=True)
+    if workers <= 0:
+        return [_record(p, np.asarray(g), n_classes, wanted, multilabel) for p, g in pairs]
+    pool = _pool(workers)
+    records: list[dict[str, float]] = []
+    pending: deque[Future[dict[str, float]]] = deque()
+    for probability, target in pairs:
+        arguments = (probability, np.asarray(target), n_classes, wanted, multilabel)
+        pending.append(pool.submit(_record, *arguments))
+        if len(pending) >= 2 * workers:
+            records.append(pending.popleft().result())
+    records.extend(future.result() for future in pending)
     return records
 
 

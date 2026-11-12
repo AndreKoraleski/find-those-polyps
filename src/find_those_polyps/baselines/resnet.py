@@ -38,7 +38,8 @@ class ResNet50Encoder(Encoder):
     """Frozen torchvision ResNet-50 exposing pooled and third stage features.
 
     Images are resized to a square of `image_size` pixels and standardized with the ImageNet
-    statistics. The classification head is replaced by the identity.
+    statistics, on `preprocess_device` when it is set. The classification head is replaced by the
+    identity.
 
     Attributes:
         name: Identifier keying the leaderboard.
@@ -74,7 +75,7 @@ class ResNet50Encoder(Encoder):
         Returns:
             A float tensor of shape (3, `image_size`, `image_size`).
         """
-        return normalize(resize(image, self.image_size))
+        return normalize(resize(image, self.image_size, device=self.preprocess_device))
 
     def forward(self, images: torch.Tensor) -> dict[str, torch.Tensor]:
         """Pooled last stage and raw third stage features of a batch.

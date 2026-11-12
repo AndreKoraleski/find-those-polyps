@@ -1,6 +1,8 @@
 """Feature extraction with a frozen encoder."""
 
+from collections import deque
 from collections.abc import Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Self
 
 import numpy as np
@@ -10,7 +12,7 @@ from pydantic import BaseModel, ConfigDict
 from tqdm.auto import tqdm
 
 from find_those_polyps.evaluation.store import FeatureStore
-from find_those_polyps.models.encoder import Encoder, run
+from find_those_polyps.models.encoder import Encoder, encode
 from find_those_polyps.tasks.schema import Sample, Target
 
 
@@ -89,6 +91,8 @@ def extract(
     device: torch.device,
     description: str = "",
     store: FeatureStore | None = None,
+    workers: int = 0,
+    prefetch: int = 2,
 ) -> Features:
     """Encode every sample, keeping global features in float32 and dense maps in float16.
 
@@ -105,6 +109,9 @@ def extract(
         device: Device on which the encoder runs.
         description: Label of the progress bar.
         store: Features already encoded, read and extended in place when given.
+        workers: Threads preprocessing images ahead of the device, none by default, as in
+            `extract_many`.
+        prefetch: Batches prepared ahead of the one being encoded when `workers` is positive.
 
     Returns:
         The features on the CPU with the targets, identifiers and paths of the samples.
@@ -120,6 +127,8 @@ def extract(
         device=device,
         description=description,
         stores=[store],
+        workers=workers,
+        prefetch=prefetch,
     )
     return features
 
@@ -134,6 +143,8 @@ def extract_many(
     device: torch.device,
     description: str = "",
     stores: Sequence[FeatureStore | None] | None = None,
+    workers: int = 0,
+    prefetch: int = 2,
 ) -> list[Features]:
     """Encode every sample with several encoders, reading and decoding each image once.
 
@@ -141,6 +152,11 @@ def extract_many(
     on its own batches, so that a streamed dataset is downloaded once for all of them. All
     encoders are put in evaluation mode and moved to `device` together. Ordering and precision
     follow `extract`.
+
+    With positive `workers`, a pool of that many threads runs `preprocess` on the images of up to
+    `prefetch` batches beyond the one being encoded, so that the host prepares later batches while
+    the device computes. Batches hold the same images in the same order either way, so the
+    features are identical, and only the overlap between host and device changes.
 
     Args:
         encoders: Frozen encoders applied to the images.
@@ -151,6 +167,10 @@ def extract_many(
         description: Label of the progress bar.
         stores: Features already encoded by each encoder, read and extended in place, or `None`
             to store nothing.
+        workers: Threads preprocessing images ahead of the device, zero to preprocess each batch
+            when it is encoded.
+        prefetch: Batches of each encoder prepared ahead of the one being encoded when `workers`
+            is positive.
 
     Returns:
         The features of each encoder in the order of `encoders`, on the CPU, with the targets,
@@ -166,39 +186,63 @@ def extract_many(
     for encoder in encoders:
         encoder.eval().to(device)
     rows: list[list[torch.Tensor | None]] = [[] for _ in encoders]
-    images: list[list[NDArray[np.uint8]]] = [[] for _ in encoders]
+    inputs: list[list[Future[torch.Tensor] | torch.Tensor]] = [[] for _ in encoders]
     waiting: list[list[int]] = [[] for _ in encoders]
+    ready: list[deque[tuple[list[Future[torch.Tensor] | torch.Tensor], list[int]]]] = [
+        deque() for _ in encoders
+    ]
     targets: list[Target] = []
     ids: list[str] = []
     paths: list[str] = []
+    pool = ThreadPoolExecutor(workers) if workers > 0 else None
+    ahead = prefetch if pool is not None else 0
+
+    def prepare(index: int, image: NDArray[np.uint8]) -> Future[torch.Tensor] | torch.Tensor:
+        """Preprocessed image for one encoder, or its pending preprocessing in the pool."""
+        if pool is None:
+            return encoders[index].preprocess(image)
+        return pool.submit(encoders[index].preprocess, image)
+
+    def close(index: int) -> None:
+        """Queue the images gathered for one encoder as a batch."""
+        if inputs[index]:
+            ready[index].append((inputs[index], waiting[index]))
+            inputs[index], waiting[index] = [], []
 
     def flush(index: int) -> None:
-        """Encode the images waiting for one encoder, place their rows and store them."""
-        output = run(encoders[index], images[index], device, dense=dense).detach().float().cpu()
+        """Encode the oldest queued batch of one encoder, place its rows and store them."""
+        items, positions = ready[index].popleft()
+        tensors = [item.result() if isinstance(item, Future) else item for item in items]
+        output = encode(encoders[index], tensors, device, dense=dense).detach().float().cpu()
         output = output.half() if dense else output
-        for position, row in zip(waiting[index], output, strict=True):
+        for position, row in zip(positions, output, strict=True):
             rows[index][position] = row
         store = stores[index]
         if store is not None:
-            store.put([paths[position] for position in waiting[index]], output, dense)
-        images[index].clear()
-        waiting[index].clear()
+            store.put([paths[position] for position in positions], output, dense)
 
-    for sample in tqdm(samples, desc=description, leave=False):
-        targets.append(sample.target)
-        ids.append(sample.id)
-        paths.append(sample.path)
-        for index, store in enumerate(stores):
-            cached = store.get(sample.path, dense) if store is not None else None
-            rows[index].append(cached)
-            if cached is None:
-                images[index].append(sample.image)
-                waiting[index].append(len(ids) - 1)
-                if len(images[index]) == batch_size:
-                    flush(index)
-    for index in range(len(encoders)):
-        if images[index]:
-            flush(index)
+    try:
+        for sample in tqdm(samples, desc=description, leave=False):
+            targets.append(sample.target)
+            ids.append(sample.id)
+            paths.append(sample.path)
+            for index, store in enumerate(stores):
+                cached = store.get(sample.path, dense) if store is not None else None
+                rows[index].append(cached)
+                if cached is None:
+                    inputs[index].append(prepare(index, sample.image))
+                    waiting[index].append(len(ids) - 1)
+                    if len(inputs[index]) == batch_size:
+                        close(index)
+                        while len(ready[index]) > ahead:
+                            flush(index)
+        for index in range(len(encoders)):
+            close(index)
+            while ready[index]:
+                flush(index)
+    finally:
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=True)
     canonical = getattr(samples, "ids", None)
     order = None
     if canonical is not None and list(canonical) != ids:

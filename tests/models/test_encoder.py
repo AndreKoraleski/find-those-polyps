@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from find_those_polyps.models import TorchEncoder, patch_grid, run
 from find_those_polyps.models.encoder import _code
+from find_those_polyps.models.transforms import normalize, resize
 
 
 def test_pipeline_applies_every_stage() -> None:
@@ -97,3 +98,15 @@ def test_fingerprint_ignores_documentation_but_not_code() -> None:
     assert _code(PLAIN) == _code(DOCUMENTED)
     assert _code(PLAIN) != _code(CHANGED)
     assert _code(FRAGMENT) == FRAGMENT
+
+
+def test_resizing_on_a_device_matches_the_host_and_keeps_features_apart() -> None:
+    image = np.random.default_rng(0).integers(0, 255, size=(30, 40, 3), dtype=np.uint8)
+    assert torch.equal(resize(image, 16), resize(image, 16, device="cpu"))
+    assert normalize(resize(image, 16, device="cpu")).device.type == "cpu"
+    encoder = TorchEncoder(torch.nn.Identity(), name="identity", description="Identity.")
+    before = encoder.fingerprint()
+    encoder.preprocess_device = "cuda:0"
+    assert encoder.fingerprint() != before
+    encoder.preprocess_device = None
+    assert encoder.fingerprint() == before
