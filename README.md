@@ -33,7 +33,12 @@ test on sixteen images per partition in a few minutes, written to `results/smoke
 mixes with real results. Three reference encoders are provided, an untrained ResNet-50 as the
 lower bound, a supervised ImageNet ResNet-50 as the customary transfer learning reference and the
 self supervised DINOv2 vision transformer, `find_those_polyps.baselines:DINOv2`, as a strong general
-reference.
+reference. `find_those_polyps.baselines:GastroNetDINOv2` is the same network pretrained on the
+GastroNet-5M endoscopy images, which isolates the effect of in domain pretraining. Its weights are
+free for academic research but may not be redistributed, so each user requests access on the
+[Theta Vision Cortex portal](https://cortex.thetavision.nl/dataset-provider/listing/2/) and places
+`dinov2.pth` at `weights/gastronet-dinov2.pth` under the data root, or names it with
+`FIND_THOSE_POLYPS_GASTRONET`. Results obtained with it must cite Jong et al. (2025).
 
 No dataset has to be downloaded beforehand. Images of open datasets are streamed from their
 official hosts while the encoder runs, and the fetched files are kept under the data root for later

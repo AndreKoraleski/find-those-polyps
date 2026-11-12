@@ -25,51 +25,47 @@ PATCH = 14
 Size = Literal["small", "base", "large", "giant"]
 
 
-class DINOv2(Encoder):
-    """Frozen DINOv2 vision transformer exposing its class and patch tokens.
+def check_size(image_size: int) -> None:
+    """Refuse an input side that the patches do not tile.
+
+    Args:
+        image_size: Side in pixels of the square input.
+
+    Raises:
+        ValueError: If the side is not a multiple of fourteen.
+    """
+    if image_size % PATCH:
+        raise ValueError(f"image_size must be a multiple of {PATCH}, got {image_size}")
+
+
+class TokenEncoder(Encoder):
+    """Frozen timm vision transformer exposing its class and patch tokens.
 
     Images are resized to a square of `image_size` pixels and standardized with the ImageNet
-    statistics, on `preprocess_device` when it is set. The name is `dinov2-vit<s|b|l|g>14`,
-    followed by `-reg4` with registers and by the input size when it is not 224 pixels.
+    statistics, on `preprocess_device` when it is set.
 
     Attributes:
         name: Identifier keying the leaderboard.
         description: One sentence summary of the encoder.
         image_size: Side in pixels of the square input, a multiple of fourteen.
-        pretrained_on: The LVD-142M corpus.
         backbone: Timm network in evaluation mode with gradients disabled.
     """
 
-    pretrained_on = ("lvd-142m",)
-    letters: ClassVar[dict[str, str]] = {"small": "s", "base": "b", "large": "l", "giant": "g"}
-
     def __init__(
-        self, size: Size = "base", image_size: int = DEFAULT_SIZE, registers: bool = False
+        self, backbone: VisionTransformer, name: str, description: str, image_size: int
     ) -> None:
-        """Load the DINOv2 weights from timm, downloading them on first use.
+        """Freeze a timm vision transformer.
 
         Args:
-            size: Width of the network, `base` by default.
-            image_size: Side in pixels of the square input, 224 by default.
-            registers: Whether to use the variant with four register tokens of Darcet et al.
-                (2024).
-
-        Raises:
-            ValueError: If the size is unknown or the input side is not a multiple of fourteen.
+            backbone: Network to wrap, built for inputs of `image_size` pixels.
+            name: Identifier keying the leaderboard.
+            description: One sentence summary of the encoder.
+            image_size: Side in pixels of the square input.
         """
-        if size not in self.letters:
-            raise ValueError(f"unknown DINOv2 size {size!r}")
-        if image_size % PATCH:
-            raise ValueError(f"image_size must be a multiple of {PATCH}, got {image_size}")
         super().__init__()
-        reg = "_reg4" if registers else ""
-        weights = f"vit_{size}_patch14{reg}_dinov2.lvd142m"
-        backbone = timm.create_model(weights, pretrained=True, img_size=image_size)
-        if not isinstance(backbone, VisionTransformer):
-            raise TypeError(f"{weights} is not a vision transformer")
         self.image_size = image_size
-        self.name = sized(f"dinov2-vit{self.letters[size]}14{reg.replace('_', '-')}", image_size)
-        self.description = f"Self supervised DINOv2 ViT on LVD-142M, timm weights {weights}."
+        self.name = name
+        self.description = description
         self.backbone: VisionTransformer = backbone.eval().requires_grad_(False)
 
     def preprocess(self, image: NDArray[np.uint8]) -> torch.Tensor:
@@ -117,3 +113,47 @@ class DINOv2(Encoder):
             The patch tokens as a map of shape (B, D, S/14, S/14).
         """
         return patch_grid(output[:, self.backbone.num_prefix_tokens :], self.image_size // PATCH)
+
+
+class DINOv2(TokenEncoder):
+    """DINOv2 vision transformer trained on LVD-142M, with weights from timm.
+
+    The name is `dinov2-vit<s|b|l|g>14`, followed by `-reg4` with registers and by the input size
+    when it is not 224 pixels.
+
+    Attributes:
+        pretrained_on: The LVD-142M corpus.
+    """
+
+    pretrained_on = ("lvd-142m",)
+    letters: ClassVar[dict[str, str]] = {"small": "s", "base": "b", "large": "l", "giant": "g"}
+
+    def __init__(
+        self, size: Size = "base", image_size: int = DEFAULT_SIZE, registers: bool = False
+    ) -> None:
+        """Load the DINOv2 weights from timm, downloading them on first use.
+
+        Args:
+            size: Width of the network, `base` by default.
+            image_size: Side in pixels of the square input, 224 by default.
+            registers: Whether to use the variant with four register tokens of Darcet et al.
+                (2024).
+
+        Raises:
+            ValueError: If the size is unknown or the input side is not a multiple of fourteen.
+            TypeError: If timm does not build a vision transformer.
+        """
+        if size not in self.letters:
+            raise ValueError(f"unknown DINOv2 size {size!r}")
+        check_size(image_size)
+        reg = "_reg4" if registers else ""
+        weights = f"vit_{size}_patch14{reg}_dinov2.lvd142m"
+        backbone = timm.create_model(weights, pretrained=True, img_size=image_size)
+        if not isinstance(backbone, VisionTransformer):
+            raise TypeError(f"{weights} is not a vision transformer")
+        super().__init__(
+            backbone,
+            name=sized(f"dinov2-vit{self.letters[size]}14{reg.replace('_', '-')}", image_size),
+            description=f"Self supervised DINOv2 ViT on LVD-142M, timm weights {weights}.",
+            image_size=image_size,
+        )
