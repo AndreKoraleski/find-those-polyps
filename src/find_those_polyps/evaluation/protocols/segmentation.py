@@ -122,6 +122,79 @@ def _probability_maps(
             yield interleaved.transpose(2, 0, 1).astype(np.float32, copy=False)
 
 
+def _device_dice(
+    head: nn.Module,
+    values: torch.Tensor,
+    masks: Sequence[torch.Tensor],
+    device: torch.device,
+    *,
+    n_classes: int,
+    multilabel: bool = False,
+) -> float:
+    """Mean Dice over images, computed on the device without moving probability maps to the host.
+
+    Predictions follow `_probability_maps` and the masks, classes and averaging follow
+    `per_image`, so the value equals the Dice that `score` gives for the same head. Only the
+    counts of true and false positives and false negatives leave the device, and the quotients
+    and means are taken on the host as there.
+
+    Args:
+        head: Segmentation head, switched to evaluation mode.
+        values: Dense features of shape `(N, D, h, w)` on any device.
+        masks: Target of every image at native resolution, a class mask of shape `(H, W)` or a
+            stack of class masks of shape `(C, H, W)` with `multilabel`.
+        device: Device on which the head runs.
+        n_classes: Number of classes `C`.
+        multilabel: Whether classes may overlap.
+
+    Returns:
+        The mean over images of the Dice of each image, NaN without images.
+    """
+    head.eval()
+    counts = []
+    with torch.inference_mode():
+        for start in range(0, len(masks), _EVAL_BATCH):
+            logits = head(values[start : start + _EVAL_BATCH].to(device).float())
+            for logit, mask in zip(logits, masks[start : start + _EVAL_BATCH], strict=True):
+                target = mask.to(device)
+                upsampled = F.interpolate(
+                    logit[None], size=tuple(target.shape[-2:]), mode="bilinear", align_corners=False
+                )[0]
+                probability = upsampled.sigmoid() if multilabel else upsampled.softmax(dim=0)
+                if multilabel:
+                    predicted, truth = probability > 0.5, target > 0
+                elif n_classes == 2:
+                    predicted = (probability[1] > probability[0])[None]
+                    truth = (target == 1)[None]
+                else:
+                    classes = torch.arange(1, n_classes, device=device)[:, None, None]
+                    predicted = probability.argmax(dim=0)[None] == classes
+                    truth = target[None] == classes
+                counts.append(
+                    torch.stack(
+                        [
+                            (predicted & truth).sum(dim=(1, 2)),
+                            (predicted & ~truth).sum(dim=(1, 2)),
+                            (~predicted & truth).sum(dim=(1, 2)),
+                            (predicted.flatten(1).any(1) | truth.flatten(1).any(1)).long(),
+                        ]
+                    )
+                )
+    if not counts:
+        return float("nan")
+    scores = []
+    for tp, fp, fn, present in torch.stack(counts).cpu().tolist():
+        dice = [_safe(2.0 * a, 2.0 * a + b + c) for a, b, c in zip(tp, fp, fn, strict=True)]
+        chosen = [d for d, keep in zip(dice, present, strict=True) if keep]
+        scores.append(float(np.mean(chosen if len(dice) > 1 and chosen else dice)))
+    return float(np.mean(scores))
+
+
+def _safe(numerator: float, denominator: float) -> float:
+    """Dice quotient, one when both masks are empty, as in `overlap`."""
+    return numerator / denominator if denominator else 1.0
+
+
 class LinearSegmentation(Protocol):
     """Batch normalization and a pointwise convolution on frozen dense features.
 
@@ -198,6 +271,7 @@ class LinearSegmentation(Protocol):
         labels = resident(_resize_masks(train, self.label_size), device)
         values = resident(train.values, device)
         val_values = resident(val.values, device)
+        val_masks = [torch.from_numpy(np.ascontiguousarray(target)) for target in val.targets]
         batches = torch.randint(len(labels), (self.steps, self.batch_size), generator=generator)
         value_batches, label_batches = batches.to(values.device), batches.to(labels.device)
         optimizer = torch.optim.AdamW(head.parameters(), lr=self.lr, weight_decay=self.weight_decay)
@@ -229,10 +303,21 @@ class LinearSegmentation(Protocol):
             optimizer.step()
             schedule.step()
             if step % self.eval_every == 0 or step == self.steps:
-                maps = _probability_maps(
-                    head, val_values, val.targets, device, multilabel=multilabel
-                )
-                current = score(spec.kind, maps, val.targets, n_classes, [primary])
+                if primary == "dice":
+                    dice = _device_dice(
+                        head,
+                        val_values,
+                        val_masks,
+                        device,
+                        n_classes=n_classes,
+                        multilabel=multilabel,
+                    )
+                    current = {primary: dice}
+                else:
+                    maps = _probability_maps(
+                        head, val_values, val.targets, device, multilabel=multilabel
+                    )
+                    current = score(spec.kind, maps, val.targets, n_classes, [primary])
                 stalled += 1
                 if better(current[primary], best_score, primary):
                     best_score, stalled = current[primary], 0

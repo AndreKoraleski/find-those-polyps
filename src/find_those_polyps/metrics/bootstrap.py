@@ -9,13 +9,18 @@ bootstrap spread centred on the estimate.
 
 A statistic maps the indices of a resample to the value of the metric on it. It may carry the
 attributes `slow`, for statistics that recompute a whole metric suite and receive fewer resamples,
-and `centred`, for agreement measures whose interval is centred on the estimate.
+`centred`, for agreement measures whose interval is centred on the estimate, and `batch`, a
+function of a matrix of resamples, one per row, returning the value on every row at once. Batched
+statistics draw the same resamples and give the same values, computed with array operations
+instead of one call per resample.
 """
 
+import warnings
 from collections.abc import Callable, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.stats import rankdata
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -39,6 +44,8 @@ from find_those_polyps.tasks.schema import Target, TaskKind
 
 RESAMPLES = 1000
 """Default number of bootstrap resamples."""
+BATCH_CELLS = 1 << 24
+"""Largest number of resampled indices a batched statistic receives at once."""
 SLOW_RESAMPLES = 200
 """Number of resamples of statistics marked `slow`."""
 LEVEL = 0.95
@@ -79,7 +86,16 @@ def interval(
     if n == 0:
         return float("nan"), float("nan")
     rng = np.random.default_rng(seed)
-    values = np.array([statistic(rng.integers(0, n, n)) for _ in range(resamples)], dtype=float)
+    batch = getattr(statistic, "batch", None)
+    if batch is None:
+        values = np.array([statistic(rng.integers(0, n, n)) for _ in range(resamples)], dtype=float)
+    else:
+        rows = max(1, BATCH_CELLS // n)
+        parts = []
+        for start in range(0, resamples, rows):
+            count = min(rows, resamples - start)
+            parts.append(np.asarray(batch(rng.integers(0, n, (count, n))), dtype=float))
+        values = np.concatenate(parts)
     values = values[np.isfinite(values)]
     if len(values) == 0:
         return float("nan"), float("nan")
@@ -171,6 +187,13 @@ def averaged(statistics: Sequence[Statistic]) -> Statistic:
 
     for marker in ("slow", "centred"):
         setattr(statistic, marker, any(getattr(each, marker, False) for each in statistics))
+    batches = [getattr(each, "batch", None) for each in statistics]
+    if statistics and all(batch is not None for batch in batches):
+
+        def batch(index: NDArray[np.intp]) -> NDArray[np.float64]:
+            return np.mean(np.stack([each(index) for each in batches if each is not None]), axis=0)
+
+        vars(statistic)["batch"] = batch
     return statistic
 
 
@@ -188,6 +211,15 @@ def mean_statistic(values: NDArray[np.float64]) -> Statistic:
         chosen = values[index]
         return float(np.nanmean(chosen)) if np.isfinite(chosen).any() else float("nan")
 
+    def batch(index: NDArray[np.intp]) -> NDArray[np.float64]:
+        chosen = values[index]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            means = np.nanmean(chosen, axis=1)
+        means[~np.isfinite(chosen).any(axis=1)] = np.nan
+        return means
+
+    vars(statistic)["batch"] = batch
     return statistic
 
 
@@ -230,11 +262,136 @@ def _single(
         ),
     }
     if metric == "auroc":
+        if n_classes == 2:
+            scores = probabilities[:, 1]
+            vars(auroc)["batch"] = lambda index: _auroc_batch(labels[index], scores[index])
         return auroc
     if metric in simple:
         function = simple[metric]
-        return lambda index: function(labels[index], predictions[index])
+
+        def statistic(index: NDArray[np.intp]) -> float:
+            return function(labels[index], predictions[index])
+
+        batched = _BATCHED.get(metric)
+        if batched is not None:
+            vars(statistic)["batch"] = lambda index: batched(
+                _confusions(labels[index], predictions[index], n_classes)
+            )
+        return statistic
     return None
+
+
+def _confusions(
+    targets: NDArray[np.int64], predictions: NDArray[np.int64], n_classes: int
+) -> NDArray[np.float64]:
+    """Confusion matrix of every resample, targets along rows and predictions along columns.
+
+    Args:
+        targets: Class indices of shape `(B, n)`, one resample per row.
+        predictions: Predicted class indices of the same shape.
+        n_classes: Number of classes `C`.
+
+    Returns:
+        Counts of shape `(B, C, C)` as floats, exactly representable.
+    """
+    rows = len(targets)
+    cells = (np.arange(rows)[:, None] * n_classes + targets) * n_classes + predictions
+    counts = np.bincount(cells.ravel(), minlength=rows * n_classes * n_classes)
+    return counts.reshape(rows, n_classes, n_classes).astype(np.float64)
+
+
+def _mcc_batch(confusion: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Matthews correlation of every confusion matrix, as `matthews_corrcoef` computes it.
+
+    Every intermediate value is a sum of products of counts, exact in double precision, so the
+    results equal those of scikit-learn. A zero denominator gives zero, as there.
+
+    Args:
+        confusion: Counts of shape `(B, C, C)`.
+
+    Returns:
+        The coefficient of every resample.
+    """
+    t_sum = confusion.sum(axis=2)
+    p_sum = confusion.sum(axis=1)
+    n_correct = np.einsum("bii->b", confusion)
+    n_samples = p_sum.sum(axis=1)
+    cov_ytyp = n_correct * n_samples - (t_sum * p_sum).sum(axis=1)
+    cov_ypyp = n_samples**2 - (p_sum * p_sum).sum(axis=1)
+    cov_ytyt = n_samples**2 - (t_sum * t_sum).sum(axis=1)
+    product = cov_ypyp * cov_ytyt
+    with np.errstate(divide="ignore", invalid="ignore"):
+        values = cov_ytyp / np.sqrt(product)
+    return np.where(product == 0, 0.0, values)
+
+
+def _quadratic_kappa_batch(confusion: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Quadratically weighted kappa of every confusion matrix, as `cohen_kappa_score` computes it.
+
+    Undefined values, without samples or with a single label in common, are NaN as there.
+
+    Args:
+        confusion: Counts of shape `(B, C, C)`.
+
+    Returns:
+        The kappa of every resample.
+    """
+    n_classes = confusion.shape[1]
+    sum0 = confusion.sum(axis=1)
+    sum1 = confusion.sum(axis=2)
+    total = sum0.sum(axis=1)
+    grid = np.arange(n_classes, dtype=np.float64)
+    weights = (grid[None, :] - grid[:, None]) ** 2
+    with np.errstate(divide="ignore", invalid="ignore"):
+        expected = np.einsum("bi,bj->bij", sum0, sum1) / total[:, None, None]
+        numerator = (weights * confusion).reshape(len(confusion), -1).sum(axis=1)
+        denominator = (weights * expected).reshape(len(confusion), -1).sum(axis=1)
+        values = 1 - numerator / denominator
+    return np.where((total == 0) | (denominator == 0), np.nan, values)
+
+
+def _accuracy_batch(confusion: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Accuracy of every confusion matrix.
+
+    Args:
+        confusion: Counts of shape `(B, C, C)`.
+
+    Returns:
+        The share of correct predictions of every resample.
+    """
+    correct: NDArray[np.float64] = np.einsum("bii->b", confusion)
+    return correct / confusion.sum(axis=(1, 2))
+
+
+_BATCHED: dict[str, Callable[[NDArray[np.float64]], NDArray[np.float64]]] = {
+    "mcc": _mcc_batch,
+    "quadratic_kappa": _quadratic_kappa_batch,
+    "accuracy": _accuracy_batch,
+}
+"""Single label metrics with a batched version, as functions of the confusion matrices."""
+
+
+def _auroc_batch(targets: NDArray[np.int64], scores: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Binary AUROC of every resample from the ranks of its scores.
+
+    The area under the ROC curve equals the Mann Whitney statistic with tied scores counted as
+    one half, so it agrees with `roc_auc_score` up to floating point rounding. A resample with a
+    single class gives NaN, as the point statistic does.
+
+    Args:
+        targets: Class indices of shape `(B, n)` in `{0, 1}`.
+        scores: Scores of the positive class of the same shape.
+
+    Returns:
+        The AUROC of every resample.
+    """
+    ranks = rankdata(scores, axis=1, method="average")
+    positives = targets.sum(axis=1).astype(np.float64)
+    negatives = targets.shape[1] - positives
+    rank_sum = np.where(targets == 1, ranks, 0.0).sum(axis=1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        values = (rank_sum - positives * (positives + 1) / 2) / (positives * negatives)
+    return np.where((positives == 0) | (negatives == 0), np.nan, values)
 
 
 def prediction_statistic(

@@ -96,7 +96,8 @@ def test_averaged_statistics_share_resamples_and_markers() -> None:
     second.centred = True  # type: ignore[attr-defined]
     both = averaged([first, second])
     assert both(np.array([0, 3])) == pytest.approx((1.5 + 4.5) / 2)
-    assert both.__dict__ == {"slow": False, "centred": True}
+    assert {k: v for k, v in vars(both).items() if k != "batch"} == {"slow": False, "centred": True}
+    assert vars(both)["batch"](np.array([[0, 3]])).tolist() == [(1.5 + 4.5) / 2]
 
 
 def _detections(seed: int, n: int, n_classes: int) -> tuple[list[np.ndarray], list[np.ndarray]]:
@@ -136,3 +137,48 @@ def test_weighted_detection_resamples_match_pooled_images(metric: str) -> None:
             np.zeros(1, dtype=np.intp)
         )
     )
+
+
+@pytest.mark.parametrize(
+    ("kind", "metric", "n_classes", "exact"),
+    [
+        (TaskKind.CLASSIFICATION, "mcc", 5, True),
+        (TaskKind.CLASSIFICATION, "mcc", 2, True),
+        (TaskKind.ORDINAL, "quadratic_kappa", 4, True),
+        (TaskKind.CLASSIFICATION, "accuracy", 3, True),
+        (TaskKind.CLASSIFICATION, "auroc", 2, False),
+    ],
+)
+def test_batched_statistics_match_one_resample_at_a_time(
+    kind: TaskKind, metric: str, n_classes: int, exact: bool
+) -> None:
+    rng = np.random.default_rng(5)
+    n = 90
+    labels = rng.integers(0, n_classes, n)
+    logits = rng.normal(size=(n, n_classes)) + 1.5 * np.eye(n_classes)[labels]
+    logits[:5] = logits[0]
+    probabilities = np.exp(logits) / np.exp(logits).sum(axis=1, keepdims=True)
+    statistic = prediction_statistic(kind, metric, probabilities, tuple(labels), n_classes)
+    batch = vars(statistic)["batch"]
+    index = rng.integers(0, n, (40, n))
+    index[0] = 0
+    one = np.array([statistic(row) for row in index])
+    many = batch(index)
+    if exact:
+        assert np.array_equal(one, many, equal_nan=True)
+    else:
+        assert np.allclose(one, many, rtol=0, atol=1e-12, equal_nan=True)
+    seeds = averaged([statistic, statistic])
+    assert np.array_equal(vars(seeds)["batch"](index), many, equal_nan=True)
+    plain = averaged([lambda i: statistic(i)])
+    assert "batch" not in vars(plain)
+    assert np.allclose(interval(statistic, n), interval(plain, n), rtol=0, atol=1e-12)
+
+
+def test_batched_means_match_and_skip_undefined_values() -> None:
+    values = np.array([0.5, np.nan, 0.25, 1.0, np.nan])
+    statistic = mean_statistic(values)
+    index = np.array([[0, 2, 3, 1, 4], [1, 4, 1, 4, 1], [3, 3, 3, 0, 2]])
+    one = np.array([statistic(row) for row in index])
+    assert np.array_equal(one, vars(statistic)["batch"](index), equal_nan=True)
+    assert np.isnan(one[1])

@@ -11,7 +11,7 @@ from find_those_polyps.evaluation import KNN, PROTOCOLS, Features, LinearProbe
 from find_those_polyps.evaluation.protocols import detection, segmentation
 from find_those_polyps.evaluation.protocols.base import Protocol, better
 from find_those_polyps.evaluation.protocols.zero_shot import KMeansClustering
-from find_those_polyps.metrics import Predictions
+from find_those_polyps.metrics import Predictions, score
 from find_those_polyps.tasks import TaskKind, TaskSpec
 
 CPU = torch.device("cpu")
@@ -92,7 +92,20 @@ def test_dense_probes_stop_once_validation_stalls(
         evaluated.append(len(targets))
         return {primary: 0.5}
 
-    monkeypatch.setattr(detection if detect else segmentation, "score", constant)
+    def device_dice(
+        head: torch.nn.Module,
+        values: torch.Tensor,
+        masks: Sequence[torch.Tensor],
+        device: torch.device,
+        **options: object,
+    ) -> float:
+        evaluated.append(len(masks))
+        return 0.5
+
+    if detect:
+        monkeypatch.setattr(detection, "score", constant)
+    else:
+        monkeypatch.setattr(segmentation, "_device_dice", device_dice)
     spec = TaskSpec(
         id="dense/squares",
         description="Squares.",
@@ -112,3 +125,36 @@ def test_dense_probes_stop_once_validation_stalls(
     predictions = probe.predict(train, val, test, spec, seed=0, device=CPU)
     assert len(list(predictions)) == 4
     assert evaluated == [4] * 5
+
+
+@pytest.mark.parametrize(
+    ("kind", "n_classes"),
+    [
+        (TaskKind.SEGMENTATION, 2),
+        (TaskKind.SEGMENTATION, 4),
+        (TaskKind.MULTILABEL_SEGMENTATION, 3),
+    ],
+)
+def test_validation_dice_on_the_device_equals_the_host_score(
+    kind: TaskKind, n_classes: int
+) -> None:
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    multilabel = kind is TaskKind.MULTILABEL_SEGMENTATION
+    head = torch.nn.Conv2d(6, n_classes, 1)
+    values = torch.randn(11, 6, 4, 5)
+    targets = []
+    for index in range(11):
+        shape = (n_classes, 23, 31) if multilabel else (23, 31)
+        high = 2 if multilabel else n_classes
+        mask = rng.integers(0, high, shape).astype(np.uint8)
+        if index == 3:
+            mask[:] = 0
+        targets.append(mask)
+    maps = segmentation._probability_maps(head, values, targets, CPU, multilabel=multilabel)
+    expected = score(kind, maps, tuple(targets), n_classes, ["dice"])["dice"]
+    masks = [torch.from_numpy(target) for target in targets]
+    dice = segmentation._device_dice(
+        head, values, masks, CPU, n_classes=n_classes, multilabel=multilabel
+    )
+    assert dice == expected
