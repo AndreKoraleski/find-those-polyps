@@ -2,7 +2,8 @@
 
 `find-those-polyps evaluate ...` is `polyps-evaluate`, `find-those-polyps data ...` is
 `polyps-data`, `find-those-polyps split ...` is `polyps-split`, `find-those-polyps registry` is
-`polyps-registry`, and `find-those-polyps results` rewrites the leaderboard outputs.
+`polyps-registry`, `find-those-polyps results` rewrites the leaderboard outputs and
+`find-those-polyps ratings` rates the tasks and metrics from the per image records.
 """
 
 import sys
@@ -15,6 +16,7 @@ COMMANDS = {
     "split": ("find_those_polyps.registry.build", "build the canonical split of a task"),
     "registry": ("find_those_polyps.registry.__main__", "refresh registry hashes and docs"),
     "results": ("find_those_polyps.evaluation.results", "rewrite the workbook and summary"),
+    "ratings": ("find_those_polyps.evaluation.ratings", "rate tasks and metrics from records"),
 }
 
 
