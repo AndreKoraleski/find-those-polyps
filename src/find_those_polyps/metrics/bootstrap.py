@@ -16,7 +16,7 @@ instead of one call per resample.
 """
 
 import warnings
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -39,7 +39,7 @@ from find_those_polyps.metrics.classification import (
     ranked_examples,
     varying_labels,
 )
-from find_those_polyps.metrics.detection import IOU_THRESHOLDS, curve, match
+from find_those_polyps.metrics.detection import IOU_THRESHOLDS, Matches, curve, match
 from find_those_polyps.tasks.schema import Target, TaskKind
 
 RESAMPLES = 1000
@@ -53,6 +53,54 @@ LEVEL = 0.95
 
 Statistic = Callable[[NDArray[np.intp]], float]
 """Function mapping the sample indices of a resample to the value of a metric on it."""
+
+
+def index_rows(n: int, resamples: int, seed: int = 0) -> Iterator[NDArray[np.intp]]:
+    """Resamples of `n` sample indices, in blocks of at most `BATCH_CELLS` indices.
+
+    Every row is one resample drawn with replacement. Rows come from one stream of the generator
+    seeded with `seed`, so the first rows do not depend on the number of resamples.
+
+    Args:
+        n: Number of samples, positive.
+        resamples: Number of resamples.
+        seed: Seed of the resampling.
+
+    Yields:
+        Blocks of shape `(rows, n)` whose rows add up to `resamples`.
+    """
+    rng = np.random.default_rng(seed)
+    rows = max(1, BATCH_CELLS // n)
+    for start in range(0, resamples, rows):
+        yield rng.integers(0, n, (min(rows, resamples - start), n))
+
+
+def draws(
+    statistic: Statistic, n: int, *, resamples: int = RESAMPLES, seed: int = 0
+) -> NDArray[np.float64]:
+    """Values of `statistic` on resamples of `n` samples drawn with replacement.
+
+    The resamples depend on `n`, `resamples` and `seed` only, so statistics of different models
+    on the same samples receive the same resamples and their values can be paired. The first rows
+    are the same whatever the number of resamples.
+
+    Args:
+        statistic: Statistic to resample.
+        n: Number of samples, positive.
+        resamples: Number of resamples.
+        seed: Seed of the resampling.
+
+    Returns:
+        The value on every resample, NaN where the statistic is undefined.
+    """
+    batch = getattr(statistic, "batch", None)
+    parts = []
+    for index in index_rows(n, resamples, seed):
+        if batch is None:
+            parts.append(np.array([statistic(row) for row in index], dtype=float))
+        else:
+            parts.append(np.asarray(batch(index), dtype=float))
+    return np.concatenate(parts) if parts else np.zeros(0)
 
 
 def interval(
@@ -85,17 +133,7 @@ def interval(
         resamples = min(resamples, SLOW_RESAMPLES)
     if n == 0:
         return float("nan"), float("nan")
-    rng = np.random.default_rng(seed)
-    batch = getattr(statistic, "batch", None)
-    if batch is None:
-        values = np.array([statistic(rng.integers(0, n, n)) for _ in range(resamples)], dtype=float)
-    else:
-        rows = max(1, BATCH_CELLS // n)
-        parts = []
-        for start in range(0, resamples, rows):
-            count = min(rows, resamples - start)
-            parts.append(np.asarray(batch(rng.integers(0, n, (count, n))), dtype=float))
-        values = np.concatenate(parts)
+    values = draws(statistic, n, resamples=resamples, seed=seed)
     values = values[np.isfinite(values)]
     if len(values) == 0:
         return float("nan"), float("nan")
@@ -135,6 +173,20 @@ def detection_statistic(
         match(p, np.asarray(t, dtype=np.float64).reshape(-1, 5), n_classes)
         for p, t in zip(predictions, targets, strict=True)
     ]
+    return matched_statistic(metric, matched, n_classes)
+
+
+def matched_statistic(metric: str, matched: Sequence[Matches], n_classes: int) -> Statistic:
+    """Resampled detection `metric` from the matches of every image, as `detection_statistic`.
+
+    Args:
+        metric: Detection metric, one of `DETECTION`.
+        matched: Matching outcome of every image.
+        n_classes: Number of classes, including the background.
+
+    Returns:
+        Statistic of `metric` over the resampled images, NaN when no target occurs in them.
+    """
     columns = {"box_ap50": [0], "box_ap75": [5]}.get(metric, list(range(len(IOU_THRESHOLDS))))
     counts = np.array([m.targets for m in matched], dtype=np.float64).reshape(-1, n_classes)
     image = np.repeat(np.arange(len(matched)), [len(m.scores) for m in matched])
@@ -228,8 +280,11 @@ def _single(
 ) -> Callable[[NDArray[np.intp]], float] | None:
     """Fast resampled version of common single label metrics, or None for the others.
 
-    It avoids recomputing the whole suite of `single_label` and agrees with it when the
-    probabilities of every sample sum to one.
+    It avoids recomputing the whole suite of `single_label` and agrees with it exactly, because
+    it first normalises the probabilities of every sample to sum to one as `single_label` does.
+    Probabilities in single precision, such as the votes of the k nearest neighbours, sum to one
+    only up to rounding, and leaving them unnormalised would change their ties and with them
+    the AUROC.
 
     Args:
         metric: Name of the metric.
@@ -239,6 +294,7 @@ def _single(
     Returns:
         Statistic of `metric`, or None when no fast version exists.
     """
+    probabilities = probabilities / probabilities.sum(axis=1, keepdims=True)
     predictions = probabilities.argmax(axis=1)
     n_classes = probabilities.shape[1]
 
