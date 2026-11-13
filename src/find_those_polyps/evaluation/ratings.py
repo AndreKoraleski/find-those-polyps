@@ -1,6 +1,6 @@
-"""Ratings of how well every task separates encoders.
+"""Ratings of how well every task separates encoders and of how informative every metric is.
 
-The ratings rest on paired differences. The per image records of every model are aligned on their
+Both ratings rest on paired differences. The per image records of every model are aligned on their
 test images, and every model receives the same resamples of those images, so the difference between
 two models is resampled as one statistic and its noise excludes the variation that both share.
 Metrics are averaged over the seeds of a protocol on every resample.
@@ -31,12 +31,18 @@ dropping one encoder changes a flag that stays defined. A setting is small when 
 
 The region of practical equivalence of a metric is `ROPE_FRACTION` of its range, the 0.01 of
 accuracy that Benavoli et al. (2017) use, scaled so that it has the same relative size for every
-metric.
+metric. Metrics are rated over all settings of a family of tasks, since one setting holds few
+encoders. Discriminative power is the share of pooled pairs that differ after Holm's correction
+(Sakai 2007), the swap rate the share of resamples reversing the sign of a pair, and the seed
+reliability the intraclass correlation ICC(1,k) of encoders over seeds. Two metrics agree by the
+Kendall tau of the pairwise verdicts they give over all settings, and metrics agreeing at 0.8 or
+more are clustered together.
 """
 
 import argparse
 import math
 import sys
+from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
@@ -47,6 +53,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from scipy.cluster.hierarchy import fcluster, linkage
+from scipy.spatial.distance import squareform
 
 from find_those_polyps.evaluation.records import DETECTION_COLUMNS, matches_from_records
 from find_those_polyps.logging import get_logger
@@ -81,6 +89,12 @@ SATURATED = 0.7
 """Saturation index from which a setting is saturated, the high regime of Akhtar et al."""
 TOP_K = 5
 """Number of leading encoders compared by the saturation index."""
+AGREEING = 0.8
+"""Kendall tau from which two metrics fall in the same cluster."""
+MIN_ENCODERS = 5
+"""Pretrained encoders that some setting of a family needs before the Kendall tau between metrics,
+the clusters built on it and the choices that depend on them are reported. With fewer, tau only
+takes a few coarse values, so that a single discordant pair decides it."""
 METRIC_RESAMPLES = 200
 """Resamples of the metrics other than the primary one."""
 EXACT_FLIPS = 16
@@ -95,6 +109,17 @@ AGREEMENT = 1e-6
 """Largest difference between the score recomputed from records and the leaderboard score."""
 SIGNED = frozenset({"mcc", "cohen_kappa", "quadratic_kappa", "linear_kappa", "spearman"})
 """Metrics ranging over [-1, 1]."""
+
+VALIDITY = {
+    "mcc": "Metrics Reloaded option, prevalence dependent, document the 0/0 convention",
+    "auroc": "Default multi threshold metric, add a proper scoring rule near the ceiling",
+    "quadratic_kappa": "Community standard, report linear kappa and never average across scales",
+    "dice": "Default with NSD, computed per image, IoU is redundant",
+    "box_ap50": "Standardised AP, state the matching rule and the interpolation",
+    "map_at_r": "Outside Metrics Reloaded, keeps resolution where precision at 1 saturates",
+    "ami": "Chance corrected, ARI suits balanced references",
+}
+"""Fit of common primary metrics with Metrics Reloaded and the literature, from the report."""
 
 TASK_COLUMNS = [
     "task",
@@ -132,6 +157,23 @@ TASK_COLUMNS = [
     "registry_version",
 ]
 """Columns of the task ratings."""
+
+METRIC_COLUMNS = [
+    "family",
+    "metric",
+    "primary",
+    "settings",
+    "pairs",
+    "discriminative_power",
+    "swap_rate",
+    "seed_reliability",
+    "tau_primary",
+    "cluster",
+    "dominated_by",
+    "secondary",
+    "validity",
+]
+"""Columns of the metric ratings."""
 
 Records = dict[int, pd.DataFrame]
 """Per image records of one model on one setting, keyed by seed and sorted by image."""
@@ -737,6 +779,228 @@ def rate_tasks(settings: Sequence[Setting], rope_fraction: float = ROPE_FRACTION
     return table[TASK_COLUMNS].sort_values(["task", "protocol"], ignore_index=True)
 
 
+@dataclass
+class _Tally:
+    """Running counts of the meta evaluation of one metric in one family."""
+
+    settings: int = 0
+    pairs: int = 0
+    resolved: int = 0
+    swaps: list[float] = field(default_factory=list)
+    reliabilities: list[float] = field(default_factory=list)
+
+
+def icc(seeds: NDArray[np.float64]) -> float:
+    """Intraclass correlation ICC(1,k) of models over seeds, from the one way analysis of variance.
+
+    Args:
+        seeds: Value of every model under every seed, of shape `(M, S)`, without NaN.
+
+    Returns:
+        `(MSB - MSW) / MSB`, NaN with fewer than two models or seeds or without spread between
+        models.
+    """
+    models, k = seeds.shape
+    if models < 2 or k < 2:
+        return float("nan")
+    between = k * float(np.var(seeds.mean(axis=1), ddof=1))
+    within = float(np.mean(np.var(seeds, axis=1, ddof=1)))
+    return (between - within) / between if between > 0 else float("nan")
+
+
+def rate_metrics(
+    settings: Sequence[Setting], min_encoders: int = MIN_ENCODERS
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Metric ratings pooled over the settings of every family.
+
+    The primary metric of a family is the most common primary metric of its settings. It is
+    dominated by a metric of its cluster with more discriminative power, a lower swap rate and a
+    seed reliability that is at least as high or undefined for either. The proposed secondary
+    metric is the most discriminative metric outside its cluster. Tau, the clusters, dominance
+    and the secondary are left undefined for a family whose largest pool of pretrained encoders
+    is smaller than `min_encoders`, while the agreement table still reports tau.
+
+    Args:
+        settings: Measured settings.
+        min_encoders: Pretrained encoders the largest pool of a family needs for tau and the
+            choices built on it.
+
+    Returns:
+        The metric ratings with the columns of `METRIC_COLUMNS`, and the agreement table with one
+        row per family and pair of metrics giving the pooled Kendall tau and the number of pairs
+        of encoders behind it.
+    """
+    rows, agreement = [], []
+    families: dict[str, list[Setting]] = {}
+    for setting in settings:
+        families.setdefault(setting.family, []).append(setting)
+    for name, members in sorted(families.items()):
+        primary = Counter(s.primary for s in members).most_common(1)[0][0]
+        tallies: dict[str, _Tally] = {}
+        verdicts: list[tuple[int, dict[str, NDArray[np.float64]]]] = []
+        largest = 0
+        for setting in members:
+            pool = np.flatnonzero(setting.pretrained)
+            largest = max(largest, len(pool))
+            if len(pool) < 2:
+                continue
+            pairs = [(int(i), int(j)) for i, j in combinations(pool, 2)]
+            signs = {}
+            for metric, measured in setting.metrics.items():
+                if not np.isfinite(measured.points[pool]).all():
+                    continue
+                _tally(tallies.setdefault(metric, _Tally()), measured, pool, pairs)
+                oriented = (1.0 if _higher(metric) else -1.0) * measured.points
+                signs[metric] = np.array([np.sign(oriented[i] - oriented[j]) for i, j in pairs])
+            verdicts.append((len(pairs), signs))
+        metrics = sorted(tallies, key=lambda m: (m != primary, m))
+        tau = _agreement(metrics, verdicts)
+        for a, b in combinations(metrics, 2):
+            value, count = tau[(a, b)]
+            agreement.append(
+                {"family": name, "metric_a": a, "metric_b": b, "tau": value, "pairs": count}
+            )
+        clusters = _clusters(metrics, tau)
+        table = {m: _summary(tallies[m]) for m in metrics}
+        enough = largest >= min_encoders
+        for m in metrics:
+            head = m == primary
+            known = enough and primary in tallies
+            rows.append(
+                {
+                    "family": name,
+                    "metric": m,
+                    "primary": head,
+                    "settings": tallies[m].settings,
+                    "pairs": tallies[m].pairs,
+                    **table[m],
+                    "tau_primary": tau[(m, primary)][0] if known else float("nan"),
+                    "cluster": clusters[m] if enough else float("nan"),
+                    "dominated_by": " ".join(_dominating(m, table, clusters))
+                    if head and enough
+                    else "",
+                    "secondary": _secondary(m, table, clusters) if head and enough else "",
+                    "validity": VALIDITY.get(m, "") if head else "",
+                }
+            )
+    return pd.DataFrame(rows, columns=METRIC_COLUMNS), pd.DataFrame(
+        agreement, columns=["family", "metric_a", "metric_b", "tau", "pairs"]
+    )
+
+
+def _tally(
+    tally: _Tally, measured: Measured, pool: NDArray[np.intp], pairs: Sequence[tuple[int, int]]
+) -> None:
+    """Add the pairs of one setting to the counts of a metric.
+
+    A swap is a resample whose difference has the opposite sign to the difference on all images,
+    and a resample without difference counts as half a swap.
+    """
+    tally.settings += 1
+    tally.pairs += len(pairs)
+    differences = [_difference(measured.draws[i], measured.draws[j]) for i, j in pairs]
+    tally.resolved += int(holm(_p_values(pairs, measured.draws, measured.images)).sum())
+    for (i, j), d in zip(pairs, differences, strict=True):
+        gap = float(np.sign(measured.points[i] - measured.points[j]))
+        if gap != 0 and len(d):
+            tally.swaps.append(float(np.mean(np.sign(d) == -gap) + 0.5 * np.mean(d == 0)))
+    seeds = measured.seeds[pool]
+    tally.reliabilities.append(icc(seeds[:, np.isfinite(seeds).all(axis=0)]))
+
+
+def _summary(tally: _Tally) -> dict[str, float]:
+    """Discriminative power, swap rate and median seed reliability of a metric."""
+    reliable = [r for r in tally.reliabilities if np.isfinite(r)]
+    return {
+        "discriminative_power": tally.resolved / tally.pairs if tally.pairs else float("nan"),
+        "swap_rate": float(np.mean(tally.swaps)) if tally.swaps else float("nan"),
+        "seed_reliability": float(np.median(reliable)) if reliable else float("nan"),
+    }
+
+
+def _agreement(
+    metrics: Sequence[str], verdicts: Sequence[tuple[int, Mapping[str, NDArray[np.float64]]]]
+) -> dict[tuple[str, str], tuple[float, int]]:
+    """Pooled Kendall tau between the pairwise verdicts of every two metrics.
+
+    Over the pairs of encoders that both metrics judge, it is the number of concordant minus
+    discordant verdicts over the number of pairs, ties counting as neither.
+
+    Args:
+        metrics: Metrics of the family.
+        verdicts: Number of pairs of every setting, with the sign of every pair under each metric
+            measured on that setting.
+
+    Returns:
+        The tau and the number of pairs of every ordered pair of metrics, a metric agreeing with
+        itself at 1, and NaN for pairs never judged together.
+    """
+    tau = {}
+    for a in metrics:
+        for b in metrics:
+            products = [signs[a] * signs[b] for _, signs in verdicts if a in signs and b in signs]
+            joined = np.concatenate(products) if products else np.zeros(0)
+            value = float(joined.sum() / len(joined)) if len(joined) else float("nan")
+            tau[(a, b)] = (value, len(joined))
+    return tau
+
+
+def _clusters(
+    metrics: Sequence[str], tau: Mapping[tuple[str, str], tuple[float, int]]
+) -> dict[str, int]:
+    """Clusters of metrics agreeing at `AGREEING`, by average linkage on one minus tau.
+
+    Pairs never judged together are as far apart as unrelated metrics, at distance one.
+    """
+    if len(metrics) < 2:
+        return dict.fromkeys(metrics, 1)
+    distance = np.array(
+        [[0.0 if a == b else 1.0 - np.nan_to_num(tau[(a, b)][0]) for b in metrics] for a in metrics]
+    )
+    labels = fcluster(
+        linkage(squareform(distance, checks=False), method="average"),
+        t=1 - AGREEING + 1e-9,
+        criterion="distance",
+    )
+    return {m: int(label) for m, label in zip(metrics, labels, strict=True)}
+
+
+def _dominating(
+    metric: str, table: Mapping[str, Mapping[str, float]], clusters: Mapping[str, int]
+) -> list[str]:
+    """Metrics of the cluster of `metric` beating it on power, stability and reliability."""
+    own = table[metric]
+    found = []
+    for other, values in table.items():
+        if other == metric or clusters[other] != clusters[metric]:
+            continue
+        reliability = values["seed_reliability"], own["seed_reliability"]
+        if (
+            values["discriminative_power"] > own["discriminative_power"]
+            and values["swap_rate"] < own["swap_rate"]
+            and (not all(np.isfinite(reliability)) or reliability[0] >= reliability[1])
+        ):
+            found.append(other)
+    return found
+
+
+def _secondary(
+    metric: str, table: Mapping[str, Mapping[str, float]], clusters: Mapping[str, int]
+) -> str:
+    """Most discriminative metric outside the cluster of `metric`, the more stable among ties."""
+    outside = [m for m in table if clusters[m] != clusters[metric]]
+    outside = [m for m in outside if np.isfinite(table[m]["discriminative_power"])]
+    if not outside:
+        return ""
+    return min(
+        outside,
+        key=lambda m: (
+            -table[m]["discriminative_power"],
+            np.nan_to_num(table[m]["swap_rate"], nan=1),
+        ),
+    )
+
+
 def backbone(model: str, input_size: int) -> str:
     """Name of a model without the suffix of its input size, which variants of it share."""
     return model.removesuffix(f"-{input_size}")
@@ -993,19 +1257,21 @@ def measure_all(work: Sequence[Job], workers: int = 0) -> list[Setting]:
         return list(pool.map(run, work))
 
 
-def render(tasks: pd.DataFrame) -> str:
+def render(tasks: pd.DataFrame, metrics: pd.DataFrame) -> str:
     """Markdown summary of the ratings.
 
     Args:
         tasks: Task ratings from `rate_tasks`.
+        metrics: Metric ratings from `rate_metrics`.
 
     Returns:
-        The summary, with the core subset and the counts of every flag over the main protocols.
+        The summary, with the core subset, the counts of every flag over the main protocols and
+        the rating of every primary metric.
     """
     main = tasks[tasks["main"]]
     core = sorted(tasks.loc[tasks["core"], "task"])
     lines = [
-        "# Task ratings",
+        "# Task and metric ratings",
         "",
         f"Core subset, {len(core)} of {len(main)} tasks: "
         + (", ".join(f"`{t}`" for t in core) or "none")
@@ -1020,29 +1286,60 @@ def render(tasks: pd.DataFrame) -> str:
         lines.append(f"| {status} | {int((main['status'] == status).sum())} |")
     for flag in ("small", "saturated", "ceiling_bound", "floor_level", "pool_sensitive"):
         lines.append(f"| {flag.replace('_', ' ')} | {int((main[flag] == True).sum())} |")  # noqa: E712
+    lines += [
+        "",
+        "## Primary metrics",
+        "",
+        f"Dominance and the secondary metric need a pool of {MIN_ENCODERS} pretrained encoders in "
+        "some setting of the family, and read n/a until then.",
+        "",
+        "| Family | Metric | Power | Swaps | Reliability | Dominated by | Secondary |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for row in metrics[metrics["primary"]].to_dict("records"):
+        lines.append(
+            f"| {row['family']} | {row['metric']} | {row['discriminative_power']:.2f} | "
+            f"{row['swap_rate']:.3f} | {row['seed_reliability']:.2f} | "
+            f"{_choice(row['dominated_by'], row['cluster'])} | "
+            f"{_choice(row['secondary'], row['cluster'])} |"
+        )
     return "\n".join(lines) + "\n"
 
 
-def write(tasks: pd.DataFrame, directory: Path) -> list[Path]:
-    """Write the ratings as a CSV file and their Markdown summary.
+def _choice(value: object, cluster: object) -> str:
+    """Text of a choice built on the clusters, n/a when the pool was too small to cluster."""
+    if not isinstance(cluster, int | float) or not math.isfinite(cluster):
+        return "n/a"
+    return str(value) if isinstance(value, str) and value else "none"
+
+
+def write(
+    tasks: pd.DataFrame, metrics: pd.DataFrame, agreement: pd.DataFrame, directory: Path
+) -> list[Path]:
+    """Write the ratings as CSV files and their Markdown summary.
 
     Args:
         tasks: Task ratings.
+        metrics: Metric ratings.
+        agreement: Agreement between metrics.
         directory: Destination folder, created when missing.
 
     Returns:
         The written paths.
     """
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / "tasks.csv"
-    tasks.round(4).to_csv(path, index=False, lineterminator="\n")
+    paths = []
+    for name, table in (("tasks", tasks), ("metrics", metrics), ("agreement", agreement)):
+        path = directory / f"{name}.csv"
+        table.round(4).to_csv(path, index=False, lineterminator="\n")
+        paths.append(path)
     summary = directory / "ratings.md"
-    summary.write_text(render(tasks), encoding="utf-8", newline="\n")
-    return [path, summary]
+    summary.write_text(render(tasks, metrics), encoding="utf-8", newline="\n")
+    return [*paths, summary]
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Rate the tasks of the leaderboard from the per image records.
+    """Rate the tasks and metrics of the leaderboard from the per image records.
 
     Args:
         argv: Command line arguments without the program name, `sys.argv[1:]` when `None`.
@@ -1090,7 +1387,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("no setting has the records of two models")
     settings = measure_all(work, args.workers)
     tasks = rate_tasks(settings, args.rope_fraction)
-    for path in write(tasks, args.output):
+    metrics, agreement = rate_metrics(settings)
+    for path in write(tasks, metrics, agreement, args.output):
         print(f"wrote {path}")
     return 0
 
