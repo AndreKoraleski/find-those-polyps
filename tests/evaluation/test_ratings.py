@@ -1,7 +1,9 @@
 import zlib
+from collections.abc import Hashable
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -17,10 +19,12 @@ from find_those_polyps.evaluation.ratings import (
     agrees,
     flags,
     holm,
+    icc,
     jobs,
     main,
     measure_all,
     metric_range,
+    rate_metrics,
     rate_tasks,
     sign_flip,
 )
@@ -179,6 +183,13 @@ def test_flags_mark_a_best_encoder_at_the_ideal_value() -> None:
     assert values["ceiling_bound"] is True
 
 
+def test_icc_is_high_when_models_differ_more_than_seeds() -> None:
+    seeds = np.array([[0.8, 0.81, 0.79], [0.6, 0.61, 0.59], [0.4, 0.42, 0.41]])
+    assert icc(seeds) > 0.99
+    assert np.isnan(icc(seeds[:1]))
+    assert np.isnan(icc(np.ones((3, 3))))
+
+
 def test_metric_ranges_give_every_metric_the_same_relative_rope() -> None:
     assert metric_range("dice", TaskKind.SEGMENTATION, 2) == 1
     assert metric_range("mcc", TaskKind.CLASSIFICATION, 4) == 2
@@ -227,6 +238,28 @@ def test_tasks_are_rated_from_settings() -> None:
     assert not tasks.loc["cls/one", "small"]
     tiny = rate_tasks([replace(settings[0], n=12)]).iloc[0]
     assert tiny["small"] and tiny["status"] == "resolved" and not tiny["core"]
+
+
+def test_metrics_are_rated_over_the_settings_of_a_family() -> None:
+    settings = [
+        _setting("cls/one", [0.8, 0.6, 0.7, 0.2], [0.1, 0.3, 0.2, 0.0]),
+        _setting("cls/two", [0.5, 0.7, 0.6, 0.1], [0.3, 0.1, 0.2, 0.0]),
+    ]
+    metrics, agreement = rate_metrics(settings, min_encoders=3)
+    rows: dict[str, dict[Hashable, Any]] = {str(r["metric"]): r for r in metrics.to_dict("records")}
+    assert rows["mcc"]["primary"]
+    assert rows["mcc"]["tau_primary"] == 1
+    assert rows["accuracy"]["cluster"] == rows["mcc"]["cluster"]
+    assert rows["macro_f1"]["cluster"] != rows["mcc"]["cluster"]
+    assert rows["macro_f1"]["tau_primary"] == -1
+    assert rows["mcc"]["discriminative_power"] == 1
+    assert rows["macro_f1"]["discriminative_power"] < 1
+    assert rows["mcc"]["secondary"] == "macro_f1"
+    assert set(agreement["pairs"]) == {6}
+    small, _ = rate_metrics(settings)
+    assert small["cluster"].isna().all() and small["tau_primary"].isna().all()
+    assert set(small["dominated_by"]) == {""} and set(small["secondary"]) == {""}
+    assert small["discriminative_power"].notna().all()
 
 
 def _spec() -> TaskSpec:
@@ -346,6 +379,6 @@ def test_command_writes_the_ratings(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     )
     assert status == 0
     assert len(pd.read_csv(tmp_path / "ratings" / "tasks.csv")) == 1
-    assert not (tmp_path / "ratings" / "metrics.csv").exists()
+    assert "mcc" in set(pd.read_csv(tmp_path / "ratings" / "metrics.csv")["metric"])
     summary = (tmp_path / "ratings" / "ratings.md").read_text(encoding="utf-8")
     assert "Core subset, 1 of 1 tasks: `cls/toy`." in summary
