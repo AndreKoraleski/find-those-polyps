@@ -228,8 +228,11 @@ def _single(
 ) -> Callable[[NDArray[np.intp]], float] | None:
     """Fast resampled version of common single label metrics, or None for the others.
 
-    It avoids recomputing the whole suite of `single_label` and agrees with it when the
-    probabilities of every sample sum to one.
+    It avoids recomputing the whole suite of `single_label` and agrees with it exactly, because
+    it first normalises the probabilities of every sample to sum to one as `single_label` does.
+    Probabilities in single precision, such as the votes of the k nearest neighbours, sum to one
+    only up to rounding, and leaving them unnormalised would change their ties and with them
+    the AUROC.
 
     Args:
         metric: Name of the metric.
@@ -239,6 +242,7 @@ def _single(
     Returns:
         Statistic of `metric`, or None when no fast version exists.
     """
+    probabilities = probabilities / probabilities.sum(axis=1, keepdims=True)
     predictions = probabilities.argmax(axis=1)
     n_classes = probabilities.shape[1]
 

@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from sklearn.metrics import adjusted_mutual_info_score, matthews_corrcoef, roc_auc_score
 
+from find_those_polyps.metrics import score
 from find_those_polyps.metrics.bootstrap import (
     averaged,
     detection_statistic,
@@ -41,6 +42,28 @@ def test_resampled_metrics_match_the_full_metrics(metric: str) -> None:
     if metric == "auroc":
         assert value == pytest.approx(roc_auc_score(targets, probabilities, multi_class="ovr"))
     assert np.isfinite(value)
+
+
+@pytest.mark.parametrize("metric", ["auroc", "mcc", "accuracy", "macro_f1", "quadratic_kappa"])
+@pytest.mark.parametrize("n_classes", [2, 3])
+def test_fast_metrics_match_the_suite_on_single_precision_votes(
+    metric: str, n_classes: int
+) -> None:
+    rng = np.random.default_rng(4)
+    targets = rng.integers(0, n_classes, 400)
+    votes = rng.integers(0, 6, (400, n_classes)).astype(np.float32) + 1e-3
+    votes[np.arange(400), targets] += 3
+    single = (votes / votes.sum(axis=1, keepdims=True)).astype(np.float32)
+    single[:40] = np.round(single[:40], 1)
+    probabilities = single.astype(np.float64)
+    labels = tuple(int(t) for t in targets)
+    statistic = prediction_statistic(TaskKind.ORDINAL, metric, probabilities, labels, n_classes)
+    expected = score(TaskKind.ORDINAL, probabilities, labels, n_classes, [metric])[metric]
+    assert statistic(np.arange(400)) == expected
+    if "batch" in vars(statistic):
+        assert vars(statistic)["batch"](np.arange(400)[None])[0] == pytest.approx(
+            expected, abs=1e-12
+        )
 
 
 def _label_sets() -> tuple[np.ndarray, np.ndarray]:
