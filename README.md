@@ -40,7 +40,12 @@ GastroNet-5M endoscopy images, which isolates the effect of in domain pretrainin
 free for academic research but may not be redistributed, so each user requests access on the
 [Theta Vision Cortex portal](https://cortex.thetavision.nl/dataset-provider/listing/2/) and places
 `dinov2.pth` at `weights/gastronet-dinov2.pth` under the data root, or names it with
-`FIND_THOSE_POLYPS_GASTRONET`. Results obtained with it must cite Jong et al. (2025).
+`FIND_THOSE_POLYPS_GASTRONET`. Results obtained with it must cite Jong et al. (2025). `find_those_polyps.baselines:GastroNetResNet50` is the ResNet-50 that Boers et al. (2024)
+pretrained with DINO on GastroNet-5M, the in domain counterpart of the supervised ImageNet ResNet-50.
+Its weights come from the same portal under the same agreement, and the ResNet-50 DINO checkpoint is
+placed at `weights/gastronet-resnet50.pth` under the data root, or named with
+`FIND_THOSE_POLYPS_GASTRONET_RESNET50`. Results obtained with it must cite Jong et al. (2025) and
+Boers et al. (2024).
 
 No dataset has to be downloaded beforehand. Images of open datasets are streamed from their
 official hosts while the encoder runs, and the fetched files are kept under the data root for later
