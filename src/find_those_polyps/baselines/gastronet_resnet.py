@@ -99,7 +99,9 @@ def load_backbone(path: Path) -> ResNet:
     state = backbone_state(checkpoint)
     network = resnet50(weights=None)
     expected = {
-        name: value.shape for name, value in network.state_dict().items() if not name.startswith("fc.")
+        name: value.shape
+        for name, value in network.state_dict().items()
+        if not name.startswith("fc.")
     }
     missing = sorted(name for name in expected if name not in state)
     wrong = sorted(

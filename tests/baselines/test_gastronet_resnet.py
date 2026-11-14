@@ -7,8 +7,7 @@ import pytest
 import torch
 from torchvision.models import resnet50
 
-from find_those_polyps.baselines import GastroNetResNet50
-from find_those_polyps.baselines import gastronet
+from find_those_polyps.baselines import GastroNetResNet50, gastronet
 from find_those_polyps.baselines import gastronet_resnet as module
 from find_those_polyps.models import run
 
