@@ -30,22 +30,33 @@ uv run polyps-evaluate find_those_polyps.baselines:ImageNetResNet50 --tasks "cls
 
 `--dry-run` lists the selected tasks and how their data will be read, and `--limit 16` runs a smoke
 test on sixteen images per partition in a few minutes, written to `results/smoke/` so that it never
-mixes with real results. Four reference encoders are provided, an untrained ResNet-50 as the
+mixes with real results. Five reference encoders are provided, an untrained ResNet-50 as the
 lower bound, a supervised ImageNet ResNet-50 as the customary transfer learning reference, the self
 supervised DINOv2 vision transformer, `find_those_polyps.baselines:DINOv2`, as a strong general
-reference, and `find_those_polyps.baselines:ColourTexture`, handcrafted colour statistics with
-gradient orientation and local binary pattern histograms. The last learns nothing, so a task it
-solves well rewards low level image statistics rather than semantic content. `find_those_polyps.baselines:GastroNetDINOv2` is the same network pretrained on the
-GastroNet-5M endoscopy images, which isolates the effect of in domain pretraining. Its weights are
-free for academic research but may not be redistributed, so each user requests access on the
+reference, `find_those_polyps.baselines:ImageNetViT`, the supervised ImageNet-1k DeiT III ViT-B/16
+of Touvron et al. (2022), which shares the architecture of DINOv2 and the data of the supervised
+ResNet-50 and so separates the training method from the architecture, and
+`find_those_polyps.baselines:ColourTexture`, handcrafted colour statistics with gradient orientation
+and local binary pattern histograms. The last learns nothing, so a task it solves well rewards low
+level image statistics rather than semantic content.
+
+Two encoders pretrained on the GastroNet-5M endoscopy images isolate the effect of in domain
+pretraining. `find_those_polyps.baselines:GastroNetDINOv2` is the DINOv2 network, and
+`find_those_polyps.baselines:GastroNetResNet50` is the ResNet-50 that Boers et al. (2024) pretrained
+with DINO, the in domain counterpart of the supervised ImageNet ResNet-50. Their weights are free
+for academic research but may not be redistributed, so each user requests access on the
 [Theta Vision Cortex portal](https://cortex.thetavision.nl/dataset-provider/listing/2/) and places
-`dinov2.pth` at `weights/gastronet-dinov2.pth` under the data root, or names it with
-`FIND_THOSE_POLYPS_GASTRONET`. Results obtained with it must cite Jong et al. (2025). `find_those_polyps.baselines:GastroNetResNet50` is the ResNet-50 that Boers et al. (2024)
-pretrained with DINO on GastroNet-5M, the in domain counterpart of the supervised ImageNet ResNet-50.
-Its weights come from the same portal under the same agreement, and the ResNet-50 DINO checkpoint is
-placed at `weights/gastronet-resnet50.pth` under the data root, or named with
-`FIND_THOSE_POLYPS_GASTRONET_RESNET50`. Results obtained with it must cite Jong et al. (2025) and
-Boers et al. (2024).
+them under the data root, `dinov2.pth` at `weights/gastronet-dinov2.pth` and the ResNet-50 DINO
+checkpoint at `weights/gastronet-resnet50.pth`, or names them with `FIND_THOSE_POLYPS_GASTRONET` and
+`FIND_THOSE_POLYPS_GASTRONET_RESNET50`. They are never committed.
+
+```bash
+export FIND_THOSE_POLYPS_GASTRONET_RESNET50=/path/to/resnet50.pth   # optional
+uv run polyps-evaluate find_those_polyps.baselines:GastroNetResNet50 --tasks "cls/*" --limit 16
+```
+
+Results obtained with either must cite Jong et al. (2025), and those of the ResNet-50 also Boers et
+al. (2024).
 
 No dataset has to be downloaded beforehand. Images of open datasets are streamed from their
 official hosts while the encoder runs, and the fetched files are kept under the data root for later
