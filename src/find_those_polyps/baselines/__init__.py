@@ -1,5 +1,6 @@
 """Reference encoders that bound and validate the benchmark."""
 
+from find_those_polyps.baselines.deit import ImageNetViT
 from find_those_polyps.baselines.dinov2 import DINOv2, TokenEncoder
 from find_those_polyps.baselines.gastronet import GastroNetDINOv2
 from find_those_polyps.baselines.handcrafted import ColourTexture
@@ -10,6 +11,7 @@ __all__ = [
     "DINOv2",
     "GastroNetDINOv2",
     "ImageNetResNet50",
+    "ImageNetViT",
     "RandomResNet50",
     "ResNet50Encoder",
     "TokenEncoder",

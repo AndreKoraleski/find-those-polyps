@@ -30,10 +30,13 @@ uv run polyps-evaluate find_those_polyps.baselines:ImageNetResNet50 --tasks "cls
 
 `--dry-run` lists the selected tasks and how their data will be read, and `--limit 16` runs a smoke
 test on sixteen images per partition in a few minutes, written to `results/smoke/` so that it never
-mixes with real results. Four reference encoders are provided, an untrained ResNet-50 as the
+mixes with real results. Five reference encoders are provided, an untrained ResNet-50 as the
 lower bound, a supervised ImageNet ResNet-50 as the customary transfer learning reference, the self
 supervised DINOv2 vision transformer, `find_those_polyps.baselines:DINOv2`, as a strong general
-reference, and `find_those_polyps.baselines:ColourTexture`, handcrafted colour statistics with
+reference, `find_those_polyps.baselines:ImageNetViT`, the supervised ImageNet-1k DeiT III ViT-B/16 of
+Touvron et al. (2022), which shares the architecture of DINOv2 and the data of the supervised
+ResNet-50 and so separates the training method from the architecture, and
+`find_those_polyps.baselines:ColourTexture`, handcrafted colour statistics with
 gradient orientation and local binary pattern histograms. The last learns nothing, so a task it
 solves well rewards low level image statistics rather than semantic content. `find_those_polyps.baselines:GastroNetDINOv2` is the same network pretrained on the
 GastroNet-5M endoscopy images, which isolates the effect of in domain pretraining. Its weights are
