@@ -11,6 +11,7 @@ tarball once, sequentially as it downloads, and places its files beside it as `t
 
 import io
 import json
+import shutil
 import tarfile
 import tempfile
 import zlib
@@ -603,13 +604,19 @@ class RemoteFiles(DatasetFiles):
 
 
 def open_files(
-    card: DatasetCard, data_root: Path, *, stream: bool = True, cache: bool = True
+    card: DatasetCard,
+    data_root: Path,
+    *,
+    stream: bool = True,
+    cache: bool = True,
+    download: bool = False,
 ) -> DatasetFiles:
     """Open a local copy of a dataset if complete or manually provided, else a streamed view.
 
     A directory holding a `.complete` marker was fetched in full, and a directory without the
     `.index` folder of a stream cache was provided by the user, so both are read locally.
-    Otherwise open datasets are streamed and read through the cache directory. A dataset whose
+    Otherwise open datasets are streamed and read through the cache directory, or with `download`
+    downloaded whole first, one request per published file, and then read locally. A dataset whose
     host ignores range requests or cannot be reached falls back to the local view, which may then
     be unavailable, and which records the error in `stream_error`.
 
@@ -618,6 +625,8 @@ def open_files(
         data_root: Directory that holds one directory per dataset key.
         stream: Whether an open dataset may be streamed from its host. Defaults to `True`.
         cache: Whether streamed files are written to the dataset directory. Defaults to `True`.
+        download: Whether an open dataset is downloaded whole before it is read, instead of
+            streamed. Defaults to `False`.
 
     Returns:
         A `LocalFiles` view of `data_root / card.key` or a `RemoteFiles` view of the official
@@ -632,6 +641,20 @@ def open_files(
     manual = local.available() and not (local.root / INDEX_DIR).is_dir()
     if complete or manual or not remote_possible:
         return local
+    if download:
+        from find_those_polyps.data.download import fetch
+
+        existed = local.root.exists()
+        try:
+            fetch(card, data_root, whole=True)
+        except TRANSIENT as error:
+            log.warning("cannot download dataset", dataset=card.key, error=str(error))
+            if not existed:
+                # An empty directory left behind would later pass for a manual copy.
+                shutil.rmtree(local.root, ignore_errors=True)
+            local.stream_error = str(error)
+            return local
+        return LocalFiles(card.key, local.root)
     try:
         files = RemoteFiles(card, local.root if cache else None)
         files.names()

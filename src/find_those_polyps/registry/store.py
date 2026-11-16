@@ -115,6 +115,7 @@ def open_loader(
     *,
     stream: bool = True,
     cache: bool = True,
+    download: bool = False,
 ) -> Loader:
     """Loader of a task's dataset, local when present and otherwise streamed from its host.
 
@@ -128,6 +129,8 @@ def open_loader(
             false only a local copy is read.
         cache: Whether streamed files are written below `data_root`. When false they are kept in
             memory only.
+        download: Whether an open dataset without a local copy is downloaded whole before it is
+            read, instead of streamed.
 
     Returns:
         The loader registered under `spec.loader`, constructed with `spec.loader_options`.
@@ -142,7 +145,7 @@ def open_loader(
     except KeyError:
         raise KeyError(f"no loader registered as {spec.loader!r}") from None
     card = (registry or load_registry()).dataset(spec.dataset)
-    files = open_files(card, data_root, stream=stream, cache=cache)
+    files = open_files(card, data_root, stream=stream, cache=cache, download=download)
     return loader_cls(files, **spec.loader_options)
 
 
@@ -154,6 +157,7 @@ def build_task(
     registry: Registry | None = None,
     stream: bool = True,
     cache: bool = True,
+    download: bool = False,
 ) -> Task:
     """Bind a task definition to its data and canonical split.
 
@@ -164,9 +168,10 @@ def build_task(
         registry: Registry holding the dataset card, or `None` to load the packaged registry.
         stream: Whether an open dataset without a local copy may be streamed from its host.
         cache: Whether streamed files are written below `data_root`.
+        download: Whether an open dataset without a local copy is downloaded whole first.
 
     Returns:
         The task with its loader and split file.
     """
-    loader = open_loader(spec, data_root, registry, stream=stream, cache=cache)
+    loader = open_loader(spec, data_root, registry, stream=stream, cache=cache, download=download)
     return Task(spec=spec, loader=loader, split=load_split(spec, splits_dir))

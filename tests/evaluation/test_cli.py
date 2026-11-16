@@ -35,6 +35,7 @@ def test_cli_runs_without_data(tmp_path: Path) -> None:
             "--seeds",
             "1",
             "--no-stream",
+            "--download",
             "--workers",
             "0",
             "--prefetch",
