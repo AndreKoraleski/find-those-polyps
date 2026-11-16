@@ -198,3 +198,63 @@ def test_cached_files_and_indexes_are_verified(card: DatasetCard, tmp_path: Path
         files.fingerprint("Kvasir-SEG/masks/k3.jpg")
         == f"{zlib.crc32(expected):08x}:{len(expected)}"
     )
+
+
+@pytest.mark.parametrize("keep", [False, True])
+def test_whole_fetch_downloads_each_file_once_and_verifies_its_index(
+    card: DatasetCard, tmp_path: Path, keep: bool
+) -> None:
+    root = tmp_path / "data"
+    destination = fetch(card, root, whole=True, keep_archives=keep)
+    assert (destination / COMPLETE).exists()
+    assert (destination / "Kvasir-SEG/images/k3.jpg").read_bytes() == _png(60)
+    assert (destination / "notes.csv").read_bytes() == NOTES
+    assert not (destination / INDEX_DIR).exists()
+    assert (root / ".archives" / "kvasir-seg" / "kvasir.zip").exists() == keep
+    assert isinstance(open_files(card, root), LocalFiles)
+
+
+def test_whole_fetch_refuses_an_archive_that_changed(card: DatasetCard, tmp_path: Path) -> None:
+    stale = card.model_copy(
+        update={
+            "downloads": (
+                card.downloads[0].model_copy(update={"index": "sha256:" + "0" * 64}),
+                card.downloads[1],
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="no longer matches its index"):
+        fetch(stale, tmp_path / "data", whole=True)
+    assert not (tmp_path / "data" / "kvasir-seg" / COMPLETE).exists()
+    assert not (tmp_path / "data" / ".archives" / "kvasir-seg" / "kvasir.zip").exists()
+
+
+def test_open_files_can_download_whole_instead_of_streaming(
+    card: DatasetCard, tmp_path: Path
+) -> None:
+    root = tmp_path / "data"
+    files = open_files(card, root, download=True)
+    assert isinstance(files, LocalFiles)
+    assert files.read("Kvasir-SEG/images/k2.jpg") == _png(40)
+    assert (root / "kvasir-seg" / COMPLETE).exists()
+    assert not (root / "kvasir-seg" / INDEX_DIR).exists()
+    assert isinstance(open_files(card, root, download=True, stream=False), LocalFiles)
+
+
+def test_a_failed_download_is_reported_like_a_failed_stream(
+    card: DatasetCard, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("find_those_polyps.data.remote.time.sleep", lambda _: None)
+    unreachable = card.model_copy(
+        update={
+            "downloads": tuple(
+                item.model_copy(update={"url": "http://127.0.0.1:9/" + item.filename})
+                for item in card.downloads
+            )
+        }
+    )
+    files = open_files(unreachable, tmp_path / "data", download=True)
+    assert isinstance(files, LocalFiles)
+    assert files.stream_error
+    assert not files.available()
+    assert not (tmp_path / "data" / "kvasir-seg").exists()

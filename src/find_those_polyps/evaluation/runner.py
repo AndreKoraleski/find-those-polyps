@@ -109,6 +109,8 @@ class EvaluationConfig(BaseModel):
         stream: Whether datasets missing under `data_root` are streamed from their official
             host, true by default.
         cache: Whether streamed files are kept under `data_root`, true by default.
+        download: Whether datasets missing under `data_root` are downloaded whole, one request
+            per published file, before they are read, instead of streamed. False by default.
         feature_cache: Whether the features of every image are kept in a `.features` folder
             under `data_root`, keyed by the fingerprint of the encoder, so that later runs of
             the same encoder do not encode the images again. True by default.
@@ -148,6 +150,7 @@ class EvaluationConfig(BaseModel):
     per_image_dir: Path | None = Path("results/per_image")
     stream: bool = True
     cache: bool = True
+    download: bool = False
     feature_cache: bool = True
     resume: bool = False
     bootstrap: int = Field(default=1000, ge=0)
@@ -878,7 +881,12 @@ def _prepare(spec: TaskSpec, registry: Registry, config: EvaluationConfig) -> Ta
         log.warning("split file not built", task=spec.id)
         return None
     task = build_task(
-        spec, config.data_root, registry=registry, stream=config.stream, cache=config.cache
+        spec,
+        config.data_root,
+        registry=registry,
+        stream=config.stream,
+        cache=config.cache,
+        download=config.download,
     )
     if not task.loader.available():
         error = getattr(getattr(task.loader, "files", None), "stream_error", None)

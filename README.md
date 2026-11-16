@@ -64,8 +64,12 @@ runs. On a machine whose disk persists, setting `FIND_THOSE_POLYPS_DATA` once to
 it makes every dataset download once and every encoder encode each image once, since encoded features
 are stored under `.features/` in the same root, keyed by the fingerprint of the encoder. A later run
 then goes straight to the probes. `uv run polyps-data fetch` without dataset keys downloads every
-open dataset ahead of the first run. On machines whose disk is wiped, such as hosted notebooks, the
-data root can be copied to persistent storage after a run and back before the next.
+open dataset ahead of the first run. Streaming reads each archive through many range requests,
+which some hosts throttle or refuse after a while. `polyps-data fetch --whole` and
+`polyps-evaluate --download` download each published file whole in one request instead, verify it
+against its pin and read it locally, at the cost of storing members that no task reads. On
+machines whose disk is wiped, such as hosted notebooks, the data root can be copied to persistent
+storage after a run and back before the next.
 
 ## Tasks and data
 
