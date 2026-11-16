@@ -1,7 +1,8 @@
 """Command line access to the registered datasets and tasks.
 
 `polyps-data datasets` lists every dataset with its access route and local state, `polyps-data
-tasks` lists every task, `polyps-data fetch KEY ...` makes local copies of open datasets, and
+tasks` lists every task, `polyps-data fetch KEY ...` makes local copies of open datasets, with
+`--whole` downloading each published file in one request rather than streaming its members, and
 `polyps-data index URL ...` prints the size and member index that pin a remote zip archive on a
 dataset card. `polyps-data check PATH ...` searches images, for instance a pretraining corpus, for
 copies and near duplicates of any test image, and `polyps-data manifest TASK ...` refreshes the
@@ -82,6 +83,14 @@ def main(argv: list[str] | None = None) -> int:
         "fetch", help="make local copies of open datasets", parents=[common]
     )
     fetch_parser.add_argument("keys", nargs="*", help="dataset keys, all open datasets if omitted")
+    fetch_parser.add_argument(
+        "--whole",
+        action="store_true",
+        help="download each published file whole in one request instead of streaming members",
+    )
+    fetch_parser.add_argument(
+        "--keep-archives", action="store_true", help="keep the files downloaded whole"
+    )
     index_parser = commands.add_parser("index", help="print the pins of remote zip archives")
     index_parser.add_argument("urls", nargs="+")
     check_parser = commands.add_parser(
@@ -148,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
             status = 1
             continue
         try:
-            print(fetch(cards[key], root))
+            print(fetch(cards[key], root, keep_archives=args.keep_archives, whole=args.whole))
         except ManualAccessError as error:
             print(error, file=sys.stderr)
             status = 1

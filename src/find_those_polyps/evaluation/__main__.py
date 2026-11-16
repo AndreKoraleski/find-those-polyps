@@ -5,7 +5,9 @@ Each encoder is named as `module:factory`, for instance
 called without arguments. Modules are also searched in the current directory. Encoders named
 together are evaluated in one pass, which reads the images of each task once for all of them.
 Selection and execution options mirror the fields of `EvaluationConfig`, and datasets absent from
-the data root are streamed from their official hosts unless `--no-stream` is given.
+the data root are streamed from their official hosts unless `--no-stream` is given. `--download`
+downloads them whole instead, one request per published file, which suits hosts that throttle or
+refuse the many range requests of streaming.
 """
 
 import argparse
@@ -146,6 +148,11 @@ def parser() -> argparse.ArgumentParser:
     add("--bootstrap", type=int, default=None, help="test resamples for intervals, 0 disables")
     add("--no-stream", action="store_true", help="read local copies only")
     add("--no-cache", action="store_true", help="keep streamed files in memory only")
+    add(
+        "--download",
+        action="store_true",
+        help="download missing datasets whole before reading them instead of streaming",
+    )
     add("--no-feature-cache", action="store_true", help="encode every image again")
     add("--dry-run", action="store_true", help="list the selected tasks and exit")
     add("--resume", action="store_true", help="skip settings already on the leaderboard")
@@ -204,6 +211,7 @@ def main(argv: list[str] | None = None) -> int:
         "bootstrap": args.bootstrap,
         "stream": False if args.no_stream else None,
         "cache": False if args.no_cache else None,
+        "download": True if args.download else None,
         "feature_cache": False if args.no_feature_cache else None,
         "resume": True if args.resume else None,
         "limit": args.limit,
