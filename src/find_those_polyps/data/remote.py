@@ -271,6 +271,132 @@ def remote_size(url: str) -> int:
     return int(content_range.rpartition("/")[2])
 
 
+class HostUnreachableError(OSError):
+    """Raised when a host could not be read after every retry."""
+
+
+class ResumableReader(io.RawIOBase):
+    """Sequential reader of a whole remote file that reconnects where it stopped.
+
+    The file is read front to back with one request. When the connection fails or ends before
+    `size` bytes arrived, a new request asks for the remaining bytes with a range header, after
+    waits of 2, 4, 8 and 16 seconds, and a host that ignores the range is read again from the
+    start with the bytes already delivered discarded. At most `RETRIES` attempts may fail in a
+    row. A host that answers 429 or 503 is waited for as `throttle_wait` says, up to
+    `THROTTLE_RETRIES` times in a row. Every reconnection requests `url` again, so hosts that
+    redirect to short lived addresses, as Figshare does, are followed afresh.
+
+    Args:
+        url: Address of the file.
+        size: Size of the file in bytes, or `None` to trust the end of the first response.
+
+    Attributes:
+        url: Address of the file.
+        size: Size of the file in bytes, or `None` when unknown.
+        position: Number of bytes delivered so far.
+    """
+
+    def __init__(self, url: str, size: int | None = None) -> None:
+        super().__init__()
+        self.url = url
+        self.size = size
+        self.position = 0
+        self._response: Any = None
+        self._failures = 0
+        self._throttled = 0
+
+    def readable(self) -> bool:
+        """Whether the stream can be read.
+
+        Returns:
+            Always `True`.
+        """
+        return True
+
+    def _open(self) -> None:
+        """Request the bytes from `position` on, skipping them when the host ignores ranges."""
+        headers = {"User-Agent": USER_AGENT}
+        if self.position:
+            headers["Range"] = f"bytes={self.position}-"
+        response = open_url(urllib.request.Request(self.url, headers=headers))
+        skip = self.position if response.status != 206 else 0
+        while skip:
+            chunk = response.read(min(CHUNK, skip))
+            if not chunk:
+                response.close()
+                raise OSError(f"{self.url} ended before byte {self.position}")
+            skip -= len(chunk)
+        self._response = response
+
+    def _drop(self) -> None:
+        """Close the current response, if any."""
+        if self._response is not None:
+            self._response.close()
+            self._response = None
+
+    def _failed(self, error: Exception | None) -> None:
+        """Count a failed attempt and wait before the next, or give up.
+
+        Args:
+            error: What interrupted the read, or `None` when the response ended early.
+
+        Raises:
+            HostUnreachableError: If `RETRIES` attempts failed in a row or a throttling host was
+                waited for `THROTTLE_RETRIES` times in a row.
+        """
+        self._drop()
+        code = error.code if isinstance(error, urllib.error.HTTPError) else None
+        if code in THROTTLED and isinstance(error, urllib.error.HTTPError):
+            self._throttled += 1
+            if self._throttled > THROTTLE_RETRIES:
+                raise HostUnreachableError(
+                    f"{self.url} kept throttling at byte {self.position}"
+                ) from error
+            time.sleep(throttle_wait(error, self._throttled))
+            return
+        self._failures += 1
+        if self._failures >= RETRIES:
+            raise HostUnreachableError(
+                f"{self.url} failed at byte {self.position}, {error}"
+            ) from error
+        time.sleep(2**self._failures)
+
+    def readinto(self, buffer: Buffer) -> int:
+        """Read the next bytes of the file into a buffer.
+
+        Args:
+            buffer: Writable buffer that receives the bytes.
+
+        Returns:
+            The number of bytes written, zero at the end of the file.
+
+        Raises:
+            HostUnreachableError: If the file could not be read after every retry.
+        """
+        while self.size is None or self.position < self.size:
+            try:
+                if self._response is None:
+                    self._open()
+                count = int(self._response.readinto(buffer) or 0)
+            except TRANSIENT as error:
+                self._failed(error)
+                continue
+            if count:
+                self.position += count
+                self._failures = self._throttled = 0
+                return count
+            if self.size is None:
+                break
+            self._failed(None)
+        self._drop()
+        return 0
+
+    def close(self) -> None:
+        """Close the connection and the stream."""
+        self._drop()
+        super().close()
+
+
 class RangeFile(io.RawIOBase):
     """Seekable read only view of a remote file backed by cached range requests.
 

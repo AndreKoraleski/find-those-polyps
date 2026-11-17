@@ -88,3 +88,15 @@ def test_pretraining_overlap_excludes_tasks(registry_path: Path) -> None:
     assert [t.id for t in select_tasks(registry, config)] == ["cls/a"]
     with pytest.raises(ValueError, match="unknown dataset"):
         select_tasks(registry, EvaluationConfig(exclude_datasets=("typo",)))
+
+
+def test_curated_corpora_are_known_pretraining_keys(
+    registry_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    sync_registry(registry_path)
+    registry = load_registry(registry_path)
+    select_tasks(registry, EvaluationConfig(pretrained_on=("real-colon-train",)))
+    assert "overlaps no task" not in capsys.readouterr().out
+    select_tasks(registry, EvaluationConfig(pretrained_on=("real-colon-trian",)))
+    logged = capsys.readouterr().out
+    assert "overlaps no task" in logged and "real-colon-train" in logged
