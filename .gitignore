@@ -24,3 +24,6 @@ results/notebook/
 
 # Checkpoints of the team encoders
 encoders/weights/
+
+# Pretraining runs, their checkpoints and exported backbones
+/runs/
