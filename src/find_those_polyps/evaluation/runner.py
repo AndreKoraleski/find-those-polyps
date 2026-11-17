@@ -46,6 +46,7 @@ from find_those_polyps.metrics.bootstrap import interval as bootstrap_interval
 from find_those_polyps.metrics.detection import match, summarize
 from find_those_polyps.metrics.segmentation import per_image
 from find_those_polyps.models.encoder import Encoder
+from find_those_polyps.pretraining.corpora import load_corpora
 from find_those_polyps.registry.schema import Registry
 from find_those_polyps.registry.store import build_task, load_registry
 from find_those_polyps.tasks.budgets import budget_indices
@@ -208,7 +209,7 @@ def select_tasks(registry: Registry, config: EvaluationConfig) -> list[TaskSpec]
     unknown = set(config.exclude_datasets) - known
     if unknown:
         raise _unknown("dataset keys", unknown, known)
-    corpora = registry.corpora()
+    corpora = registry.corpora() | {card.key for card in load_corpora()}
     for key in sorted(set(config.pretrained_on) - corpora):
         close = get_close_matches(key, sorted(corpora), n=3, cutoff=0.6)
         log.warning("pretraining dataset overlaps no task", dataset=key, closest=close)

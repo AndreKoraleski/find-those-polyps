@@ -13,9 +13,11 @@ import pytest
 
 from find_those_polyps.data import remote
 from find_those_polyps.data.remote import (
+    HostUnreachableError,
     Member,
     RangeFile,
     RangeUnsupportedError,
+    ResumableReader,
     fetch_file,
     fetch_members,
     read_index,
@@ -292,3 +294,70 @@ def test_requests_trust_the_bundled_intermediates() -> None:
     subjects = [str(cert.get("subject")) for cert in remote.tls().get_ca_certs()]
     assert any("Sectigo Public Server Authentication CA DV R36" in s for s in subjects)
     assert remote.tls().verify_mode == ssl.CERT_REQUIRED and remote.tls().check_hostname
+
+
+class _Cut:
+    """Response that delivers its first bytes and then fails or ends early."""
+
+    def __init__(self, response: Any, limit: int, *, fail: bool) -> None:
+        self.response = response
+        self.status = response.status
+        self.left = limit
+        self.fail = fail
+
+    def readinto(self, buffer: bytearray) -> int:
+        if not self.left:
+            if self.fail:
+                raise http.client.IncompleteRead(b"", 10)
+            return 0
+        count = self.response.readinto(memoryview(buffer)[: self.left])
+        self.left -= count
+        return int(count)
+
+    def read(self, size: int) -> bytes:
+        return bytes(self.response.read(size))
+
+    def close(self) -> None:
+        self.response.close()
+
+
+@pytest.mark.parametrize("fail", [True, False], ids=["dropped", "ended-early"])
+@pytest.mark.parametrize("ranges", [True, False], ids=["ranges", "no-ranges"])
+def test_resumable_reader_reconnects_where_it_stopped(
+    range_server: Server, monkeypatch: pytest.MonkeyPatch, fail: bool, ranges: bool
+) -> None:
+    url, directory, server = range_server
+    content = bytes(range(256)) * 40
+    (directory / "blob.bin").write_bytes(content)
+    server.ignore_ranges = not ranges  # type: ignore[attr-defined]
+    opened = urllib.request.urlopen
+    asked = []
+
+    def cutting(request: urllib.request.Request, timeout: float, **options: Any) -> object:
+        asked.append(request.get_header("Range"))
+        response = opened(request, timeout=timeout, **options)
+        return _Cut(response, 1000, fail=fail) if len(asked) == 1 else response
+
+    monkeypatch.setattr(urllib.request, "urlopen", cutting)
+    monkeypatch.setattr("time.sleep", lambda _: None)
+    with ResumableReader(f"{url}/blob.bin", len(content)) as reader:
+        assert reader.read() == content
+        assert reader.position == len(content)
+    assert asked == [None, "bytes=1000-"]
+
+
+def test_resumable_reader_gives_up_after_every_retry(
+    range_server: Server, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url, directory, _ = range_server
+    (directory / "blob.bin").write_bytes(b"x" * 100)
+    waits: list[float] = []
+    monkeypatch.setattr("time.sleep", waits.append)
+    with (
+        ResumableReader(f"{url}/blob.bin", 200) as reader,
+        pytest.raises(HostUnreachableError, match="failed at byte 100"),
+    ):
+        reader.read()
+    assert waits == [2, 4, 8, 16]
+    with ResumableReader(f"{url}/blob.bin") as reader:
+        assert reader.read() == b"x" * 100

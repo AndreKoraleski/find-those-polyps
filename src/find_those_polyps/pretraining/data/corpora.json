@@ -1,0 +1,585 @@
+[
+  {
+    "key": "real-colon-train",
+    "name": "REAL-Colon training and validation videos",
+    "modality": "colonoscopy",
+    "licence": "CC BY 4.0",
+    "url": "https://plus.figshare.com/articles/media/REAL-colon_dataset/22202866",
+    "citation": "Biffi et al., REAL-Colon: A dataset for developing real-world AI applications in colonoscopy, Scientific Data 11, 539 (2024), https://doi.org/10.1038/s41597-024-03359-0, data at https://doi.org/10.25452/figshare.plus.22202866.v2",
+    "provenance": "Sixty full colonoscopy recordings, one per patient, from four clinical studies of fifteen videos each, three centres in the United States (001), one in Italy (002), the University Hospital of St. Poelten in Austria (003) and Sano Hospital in Japan (004), recorded with Olympus and Fujifilm endoscopes, studies 001 and 002 between February 2020 and July 2021. The frames are white light video at 25, 29.97 or 60 frames per second, 2,757,723 in all, of which the 48 training and validation videos hold 2,166,076.",
+    "family": "real-colon",
+    "frame_pattern": "\\d{3}-\\d{3}_(\\d+)\\.jpg",
+    "archives": [
+      {
+        "unit": "001-001",
+        "url": "https://ndownloader.figshare.com/files/39461074",
+        "filename": "001-001_frames.tar.gz",
+        "checksum": "md5:d98ba9b96ac94461a0d9d06db3177a81",
+        "size": 9498899727,
+        "frames": 45465,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-002",
+        "url": "https://ndownloader.figshare.com/files/39461107",
+        "filename": "001-002_frames.tar.gz",
+        "checksum": "md5:371898b3db60c7764a8c23dfc6b4216c",
+        "size": 7130980417,
+        "frames": 26164,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-003",
+        "url": "https://ndownloader.figshare.com/files/39461191",
+        "filename": "001-003_frames.tar.gz",
+        "checksum": "md5:c9fe6ac22e34e6deb75ad9f27417cd42",
+        "size": 11295483631,
+        "frames": 39611,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-004",
+        "url": "https://ndownloader.figshare.com/files/39461251",
+        "filename": "001-004_frames.tar.gz",
+        "checksum": "md5:6daea149a782fb116d920918e047f011",
+        "size": 10639609164,
+        "frames": 45663,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-005",
+        "url": "https://ndownloader.figshare.com/files/39461287",
+        "filename": "001-005_frames.tar.gz",
+        "checksum": "md5:6af1c1868426118d8113682fe28829ec",
+        "size": 6611028228,
+        "frames": 29161,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-006",
+        "url": "https://ndownloader.figshare.com/files/39461383",
+        "filename": "001-006_frames.tar.gz",
+        "checksum": "md5:4be47fca0ad796037ac1e9e7eec63d6e",
+        "size": 10526721110,
+        "frames": 49901,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-007",
+        "url": "https://ndownloader.figshare.com/files/39461413",
+        "filename": "001-007_frames.tar.gz",
+        "checksum": "md5:fb13f7537cff6dc023bb03be3b369315",
+        "size": 8135937823,
+        "frames": 39580,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-008",
+        "url": "https://ndownloader.figshare.com/files/39461539",
+        "filename": "001-008_frames.tar.gz",
+        "checksum": "md5:d445a962607abcb71b93d2ffc0ac6a0e",
+        "size": 6084071813,
+        "frames": 35740,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-009",
+        "url": "https://ndownloader.figshare.com/files/39515857",
+        "filename": "001-009_frames.tar.gz",
+        "checksum": "md5:b3371971b5e79c41c0a46db6570ce080",
+        "size": 11079143787,
+        "frames": 40700,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-010",
+        "url": "https://ndownloader.figshare.com/files/39522631",
+        "filename": "001-010_frames.tar.gz",
+        "checksum": "md5:ce17a6e4d1186c271b759bd2a4f4ee32",
+        "size": 12503273228,
+        "frames": 46424,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-011",
+        "url": "https://ndownloader.figshare.com/files/39522898",
+        "filename": "001-011_frames.tar.gz",
+        "checksum": "md5:b08a25ccd59d6bc96aecca3ddc976145",
+        "size": 5786587929,
+        "frames": 24006,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-012",
+        "url": "https://ndownloader.figshare.com/files/39536218",
+        "filename": "001-012_frames.tar.gz",
+        "checksum": "md5:14f9709c7618e8b959b0af6e127aa3b3",
+        "size": 20436234650,
+        "frames": 42420,
+        "fps": 60.0
+      },
+      {
+        "unit": "001-013",
+        "url": "https://ndownloader.figshare.com/files/39529684",
+        "filename": "001-013_frames.tar.gz",
+        "checksum": "md5:0c693977e36792aeb12ad5128404c0cb",
+        "size": 6308035094,
+        "frames": 22418,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-014",
+        "url": "https://ndownloader.figshare.com/files/39529606",
+        "filename": "001-014_frames.tar.gz",
+        "checksum": "md5:2216510f67e3a14f8d0adf51e83e215b",
+        "size": 8447644717,
+        "frames": 28712,
+        "fps": 29.97
+      },
+      {
+        "unit": "001-015",
+        "url": "https://ndownloader.figshare.com/files/39523936",
+        "filename": "001-015_frames.tar.gz",
+        "checksum": "md5:9663163b184c375d979d7dc3b89ba55c",
+        "size": 7111138005,
+        "frames": 31349,
+        "fps": 29.97
+      },
+      {
+        "unit": "002-001",
+        "url": "https://ndownloader.figshare.com/files/39530437",
+        "filename": "002-001_frames.tar.gz",
+        "checksum": "md5:55d6f8f0a7da5a941450a56a9631feb0",
+        "size": 7598743866,
+        "frames": 25998,
+        "fps": 25.0
+      },
+      {
+        "unit": "002-002",
+        "url": "https://ndownloader.figshare.com/files/39530575",
+        "filename": "002-002_frames.tar.gz",
+        "checksum": "md5:cab0f4893c4ac8c01cfaf7546b3cd65f",
+        "size": 8160079731,
+        "frames": 24969,
+        "fps": 25.0
+      },
+      {
+        "unit": "002-003",
+        "url": "https://ndownloader.figshare.com/files/39530776",
+        "filename": "002-003_frames.tar.gz",
+        "checksum": "md5:5852f7e5f6a6d89b9bc9f7baa5dd7559",
+        "size": 16424852478,
+        "frames": 48091,
+        "fps": 25.0
+      },
+      {
+        "unit": "002-004",
+        "url": "https://ndownloader.figshare.com/files/39531004",
+        "filename": "002-004_frames.tar.gz",
+        "checksum": "md5:e58fec80272aba3d326a56d974d0d6fd",
+        "size": 11248048876,
+        "frames": 31818,
+        "fps": 25.0
+      },
+      {
+        "unit": "002-005",
+        "url": "https://ndownloader.figshare.com/files/39531385",
+        "filename": "002-005_frames.tar.gz",
+        "checksum": "md5:15ce2b12e8dfec313711f192a798a0b3",
+        "size": 13516241636,
+        "frames": 40734,
+        "fps": 25.0
+      },
+      {
+        "unit": "002-006",
+        "url": "https://ndownloader.figshare.com/files/39531724",
+        "filename": "002-006_frames.tar.gz",
+        "checksum": "md5:f2ff4238b8ed3b4ec19d5490b4b6b6c4",
+        "size": 16690957071,
+        "frames": 52719,
+        "fps": 29.97
+      },
+      {
+        "unit": "002-007",
+        "url": "https://ndownloader.figshare.com/files/39546883",
+        "filename": "002-007_frames.tar.gz",
+        "checksum": "md5:0e39d6d79b4ee9a79bc079ba30bcb054",
+        "size": 15042519173,
+        "frames": 50299,
+        "fps": 25.0
+      },
+      {
+        "unit": "002-008",
+        "url": "https://ndownloader.figshare.com/files/39546625",
+        "filename": "002-008_frames.tar.gz",
+        "checksum": "md5:e9f296f7bb7831857ca0d5a0bb926a08",
+        "size": 10756800594,
+        "frames": 33216,
+        "fps": 29.97
+      },
+      {
+        "unit": "002-009",
+        "url": "https://ndownloader.figshare.com/files/39532564",
+        "filename": "002-009_frames.tar.gz",
+        "checksum": "md5:b548270df500681efe2cf888733fb1fa",
+        "size": 12563886459,
+        "frames": 29853,
+        "fps": 29.97
+      },
+      {
+        "unit": "002-010",
+        "url": "https://ndownloader.figshare.com/files/39533206",
+        "filename": "002-010_frames.tar.gz",
+        "checksum": "md5:da364034a2cdde80c8dc922ed4e86a07",
+        "size": 8313736438,
+        "frames": 25898,
+        "fps": 25.0
+      },
+      {
+        "unit": "002-011",
+        "url": "https://ndownloader.figshare.com/files/39535777",
+        "filename": "002-011_frames.tar.gz",
+        "checksum": "md5:d01f596d7ba64f57cb6310588e1fb1f2",
+        "size": 16451356450,
+        "frames": 38474,
+        "fps": 29.97
+      },
+      {
+        "unit": "002-012",
+        "url": "https://ndownloader.figshare.com/files/39535939",
+        "filename": "002-012_frames.tar.gz",
+        "checksum": "md5:3eefd15dce117e336938557bb13158af",
+        "size": 11025804258,
+        "frames": 34464,
+        "fps": 29.97
+      },
+      {
+        "unit": "002-013",
+        "url": "https://ndownloader.figshare.com/files/39535966",
+        "filename": "002-013_frames.tar.gz",
+        "checksum": "md5:876a5b70ca2f09b574271f0207a5851f",
+        "size": 7994386591,
+        "frames": 24432,
+        "fps": 29.97
+      },
+      {
+        "unit": "002-014",
+        "url": "https://ndownloader.figshare.com/files/39536056",
+        "filename": "002-014_frames.tar.gz",
+        "checksum": "md5:d534b2bf79ae5859175b4413527475e9",
+        "size": 20540554765,
+        "frames": 56272,
+        "fps": 25.0
+      },
+      {
+        "unit": "002-015",
+        "url": "https://ndownloader.figshare.com/files/39536131",
+        "filename": "002-015_frames.tar.gz",
+        "checksum": "md5:0458b9cd442eeda208766506a81db5ae",
+        "size": 8591018582,
+        "frames": 20915,
+        "fps": 29.97
+      },
+      {
+        "unit": "003-001",
+        "url": "https://ndownloader.figshare.com/files/39536518",
+        "filename": "003-001_frames.tar.gz",
+        "checksum": "md5:b2fdc200c34f5342abee28bb06a200fe",
+        "size": 15408836440,
+        "frames": 51719,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-002",
+        "url": "https://ndownloader.figshare.com/files/39536587",
+        "filename": "003-002_frames.tar.gz",
+        "checksum": "md5:1c84db91052533815df1af4e0bb6e1f8",
+        "size": 15805232979,
+        "frames": 50601,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-003",
+        "url": "https://ndownloader.figshare.com/files/39536830",
+        "filename": "003-003_frames.tar.gz",
+        "checksum": "md5:74704e878177d3a703d68105387c0b2e",
+        "size": 25278130472,
+        "frames": 105812,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-004",
+        "url": "https://ndownloader.figshare.com/files/39547222",
+        "filename": "003-004_frames.tar.gz",
+        "checksum": "md5:e7989f09b810e73d834eeedf859492b8",
+        "size": 18524862824,
+        "frames": 75918,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-005",
+        "url": "https://ndownloader.figshare.com/files/39537031",
+        "filename": "003-005_frames.tar.gz",
+        "checksum": "md5:e6be37212318bfb81174fecf16ace3b8",
+        "size": 32959053497,
+        "frames": 123610,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-006",
+        "url": "https://ndownloader.figshare.com/files/39537076",
+        "filename": "003-006_frames.tar.gz",
+        "checksum": "md5:891d7ecb16ea94eb1671696fddbdb77f",
+        "size": 28115593624,
+        "frames": 102691,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-007",
+        "url": "https://ndownloader.figshare.com/files/39537238",
+        "filename": "003-007_frames.tar.gz",
+        "checksum": "md5:60af965978b111ada7d681f105f5be27",
+        "size": 16595372817,
+        "frames": 58647,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-008",
+        "url": "https://ndownloader.figshare.com/files/39537379",
+        "filename": "003-008_frames.tar.gz",
+        "checksum": "md5:5ecfa523397042fe86b7e9b7ff3a2209",
+        "size": 14296705661,
+        "frames": 51679,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-009",
+        "url": "https://ndownloader.figshare.com/files/39537616",
+        "filename": "003-009_frames.tar.gz",
+        "checksum": "md5:136022e611b9fa6f2bf4843041cc3db4",
+        "size": 13707618385,
+        "frames": 58238,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-010",
+        "url": "https://ndownloader.figshare.com/files/39537892",
+        "filename": "003-010_frames.tar.gz",
+        "checksum": "md5:3189bbccfff5cbce717ec20346818f7a",
+        "size": 12819917055,
+        "frames": 56282,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-011",
+        "url": "https://ndownloader.figshare.com/files/39537976",
+        "filename": "003-011_frames.tar.gz",
+        "checksum": "md5:d181c62299747ba905a0ba9270b38c25",
+        "size": 14256577244,
+        "frames": 63077,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-012",
+        "url": "https://ndownloader.figshare.com/files/39538078",
+        "filename": "003-012_frames.tar.gz",
+        "checksum": "md5:9f23fb511c5cf54a2aeb12b7dbea2cc9",
+        "size": 22480753345,
+        "frames": 96731,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-013",
+        "url": "https://ndownloader.figshare.com/files/39538363",
+        "filename": "003-013_frames.tar.gz",
+        "checksum": "md5:026effc6b149e6b45b202c8917225dbd",
+        "size": 21661647340,
+        "frames": 73670,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-014",
+        "url": "https://ndownloader.figshare.com/files/39538570",
+        "filename": "003-014_frames.tar.gz",
+        "checksum": "md5:9c057f770473d5c2c40586c53c005b77",
+        "size": 21314433360,
+        "frames": 77112,
+        "fps": 25.0
+      },
+      {
+        "unit": "003-015",
+        "url": "https://ndownloader.figshare.com/files/39539611",
+        "filename": "003-015_frames.tar.gz",
+        "checksum": "md5:43f8b146bc18e4c8114ad912cca4d2c0",
+        "size": 31247286754,
+        "frames": 111057,
+        "fps": 25.0
+      },
+      {
+        "unit": "004-001",
+        "url": "https://ndownloader.figshare.com/files/39527413",
+        "filename": "004-001_frames.tar.gz",
+        "checksum": "md5:b2f19d954039376418a4014e600dada3",
+        "size": 12596572660,
+        "frames": 25516,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-002",
+        "url": "https://ndownloader.figshare.com/files/39527572",
+        "filename": "004-002_frames.tar.gz",
+        "checksum": "md5:978b67c62cc8ebc65204d08c9487e67f",
+        "size": 16224031104,
+        "frames": 34529,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-003",
+        "url": "https://ndownloader.figshare.com/files/39528091",
+        "filename": "004-003_frames.tar.gz",
+        "checksum": "md5:7c79f55df999f2357e89df241034621a",
+        "size": 30695542540,
+        "frames": 33598,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-004",
+        "url": "https://ndownloader.figshare.com/files/39528298",
+        "filename": "004-004_frames.tar.gz",
+        "checksum": "md5:79462623513696303a6d01f56cc6a47f",
+        "size": 15426210832,
+        "frames": 33960,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-005",
+        "url": "https://ndownloader.figshare.com/files/39528484",
+        "filename": "004-005_frames.tar.gz",
+        "checksum": "md5:245adb82fe13108ec83b02a2177f0b66",
+        "size": 15822610627,
+        "frames": 22465,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-006",
+        "url": "https://ndownloader.figshare.com/files/39535795",
+        "filename": "004-006_frames.tar.gz",
+        "checksum": "md5:677c0152197a1b0daff03a35251cec6e",
+        "size": 31998307714,
+        "frames": 40986,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-007",
+        "url": "https://ndownloader.figshare.com/files/39529615",
+        "filename": "004-007_frames.tar.gz",
+        "checksum": "md5:499be27161f2f85fb9b3209198485d68",
+        "size": 19692395198,
+        "frames": 29108,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-008",
+        "url": "https://ndownloader.figshare.com/files/39529864",
+        "filename": "004-008_frames.tar.gz",
+        "checksum": "md5:d03ed1c1f52c83f60fda95e6f945ba94",
+        "size": 10637609890,
+        "frames": 22742,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-009",
+        "url": "https://ndownloader.figshare.com/files/39530098",
+        "filename": "004-009_frames.tar.gz",
+        "checksum": "md5:cdb2d5634487dd4da3012871a516883f",
+        "size": 13908030627,
+        "frames": 30311,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-010",
+        "url": "https://ndownloader.figshare.com/files/39530383",
+        "filename": "004-010_frames.tar.gz",
+        "checksum": "md5:112bd18400ee1afa3e97585ddc572786",
+        "size": 20756147904,
+        "frames": 24491,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-011",
+        "url": "https://ndownloader.figshare.com/files/39530689",
+        "filename": "004-011_frames.tar.gz",
+        "checksum": "md5:4e1a7d682b025d4db22c5d206b5053e9",
+        "size": 21952111677,
+        "frames": 48470,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-012",
+        "url": "https://ndownloader.figshare.com/files/39530905",
+        "filename": "004-012_frames.tar.gz",
+        "checksum": "md5:e3975d40e487a5dc7f2aef76f7c87772",
+        "size": 17116746431,
+        "frames": 23527,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-013",
+        "url": "https://ndownloader.figshare.com/files/39546283",
+        "filename": "004-013_frames.tar.gz",
+        "checksum": "md5:1a7991bc7f706551ed9555e256030d15",
+        "size": 44107836008,
+        "frames": 54167,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-014",
+        "url": "https://ndownloader.figshare.com/files/39540328",
+        "filename": "004-014_frames.tar.gz",
+        "checksum": "md5:b97e0b38a78fd39664675ac28868fb4b",
+        "size": 18353339870,
+        "frames": 36869,
+        "fps": 29.97
+      },
+      {
+        "unit": "004-015",
+        "url": "https://ndownloader.figshare.com/files/39542746",
+        "filename": "004-015_frames.tar.gz",
+        "checksum": "md5:6c836ab775d0144af2c816ccdc4f8f84",
+        "size": 25385096105,
+        "frames": 54674,
+        "fps": 29.97
+      }
+    ],
+    "held_out": [
+      {
+        "units": [
+          "001-013",
+          "001-014",
+          "001-015",
+          "002-013",
+          "002-014",
+          "002-015",
+          "003-013",
+          "003-014",
+          "003-015",
+          "004-013",
+          "004-014",
+          "004-015"
+        ],
+        "reason": "official test videos, the last three of every study, kept unseen so that REAL-Colon can join the benchmark as a held out video and detection test",
+        "evidence": "https://github.com/cosmoimd/real-colon-dataset/blob/7735f377c3f6f912188d9a50d2e79d470538c3bd/export_coco_format.py"
+      }
+    ],
+    "overlaps": [
+      {
+        "dataset": "colon-bench",
+        "kind": "duplicate",
+        "evidence": "https://arxiv.org/abs/2603.25645",
+        "note": "new labels on the same frames",
+        "name": "Colon-Bench"
+      }
+    ],
+    "notes": "Every video is one patient, so holding out videos holds out patients. No benchmark dataset comes from these centres. The annotation archives of the release are not read, since pretraining uses no labels."
+  }
+]

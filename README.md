@@ -183,6 +183,11 @@ Beyond that, three safeguards make contamination visible.
 uv run polyps-data check /path/to/pretraining/corpus --output matches.csv
 ```
 
+For the team's own pretraining, [docs/pretraining.md](docs/pretraining.md) lists the curated
+corpora, which share no patient with any test image, the pools that were left out and why, and how
+`find_those_polyps.pretraining` reads a corpus from its host while training, streamed, downloaded
+whole or from a local cache.
+
 ## Protocols and metrics
 
 | Protocol | Setting | Tasks | Reference |
