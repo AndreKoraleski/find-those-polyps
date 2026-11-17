@@ -1,9 +1,9 @@
-# Pretraining corpora
+# Pretraining
 
 The benchmark scores frozen encoders, and an encoder pretrained on images of a test patient scores
-too well. The corpora listed here are the pools that the team's own pretraining may read. Each one
-is large, mostly unlabelled, and shares no patient with any test image of the benchmark. Their
-cards live in
+too well. This page lists the corpora that the team's own pretraining may read and the recipes
+that train on them. Each corpus is large, mostly unlabelled, and shares no patient with any test
+image of the benchmark. Their cards live in
 [`pretraining/data/corpora.json`](../src/find_those_polyps/pretraining/data/corpora.json), where
 every archive is pinned by size and checksum and every choice carries its evidence.
 
@@ -105,12 +105,67 @@ uv run polyps-corpora verify real-colon-train
 downloading whole archives with `--whole`. `verify` checks that the host still serves every pinned
 archive at its pinned size, without downloading it.
 
+## Recipes
+
+A recipe trains one backbone with one self supervised method on the corpora above. The backbone is
+a ViT-B/14 with the architecture of the DINOv2 reference, so a trained backbone is evaluated
+exactly as that encoder is. It continues the DINOv2 weights by default, and `--init random` starts
+it from random weights. Every method carries a schedule for either start.
+
+| Method | Objective | Network kept | Continued | From random weights |
+|---|---|---|---|---|
+| `dino` | A student predicts the output of a momentum teacher on another crop, two large crops and eight small ones ([Caron et al. 2021](https://arxiv.org/abs/2104.14294)) | teacher | 20 epochs, rate 5e-5, decay 0.04 | 100 epochs, rate 5e-4, decay 0.04 |
+| `mae` | A light decoder reconstructs the pixels of the three quarters of the patches hidden from the backbone ([He et al. 2022](https://arxiv.org/abs/2111.06377)) | backbone | 50 epochs, rate 1.5e-5, decay 0.05 | 400 epochs, rate 1.5e-4, decay 0.05 |
+| `moco` | The backbone picks the momentum embedding of the other view of its frame among those of the batch ([Chen et al. 2021](https://arxiv.org/abs/2104.02057)) | backbone | 20 epochs, rate 1.5e-5, decay 0.1 | 100 epochs, rate 1.5e-4, decay 0.1 |
+
+Rates are peak learning rates for 256 frames and scale with the batch, 256 by default. All three
+use AdamW with a linear warm up and a cosine decay, and mixed precision on accelerators. The
+schedules from random weights follow the papers with fewer epochs, and the continued ones lower the
+rate tenfold. No run has tuned them yet, so they are starting points.
+
+```bash
+uv run polyps-pretrain dino
+uv run polyps-pretrain mae --init random --epochs 100 --batch-size 128
+uv run polyps-pretrain moco --fps 5 --download --workers 12
+```
+
+The corpora are read while training with the options above, `--no-stream`, `--download`,
+`--keep-archives`, `--no-cache` and `--fps`. A run writes a checkpoint after every epoch and the
+trained backbone at the end, under `runs/pretraining/NAME`, which git ignores. Running the same
+command again resumes from the last checkpoint.
+
+### Evaluating a trained backbone
+
+The exported file records the name of the encoder and every corpus its weights have seen, the
+corpus of the starting weights included. A team encoder is a factory around it, evaluated like any
+other, at 224 pixels and at 448 on the dense tasks.
+
+```python
+from find_those_polyps.pretraining.encoder import PretrainedViT
+
+
+def build() -> PretrainedViT:
+    return PretrainedViT("runs/pretraining/vitb14-dino/vitb14-dino.safetensors")
+
+
+def build_448() -> PretrainedViT:
+    return PretrainedViT("runs/pretraining/vitb14-dino/vitb14-dino.safetensors", image_size=448)
+```
+
+### Adding a method
+
+A method subclasses `Method` in `find_those_polyps.pretraining.methods`. It sets its `name` and
+its two schedules, `scratch` and `continued`, returns the augmentation of one frame from `views`
+and the loss of a batch of views from `forward`, and joins `METHODS`. `before_step` and
+`after_step` are where a method adjusts gradients or updates a momentum copy, and `exported`
+names the network to keep when it is not the backbone.
+
 ## What a pretrained encoder declares
 
 An encoder trained on a corpus lists the key of the corpus in `pretrained_on`, for instance
-`("lvd-142m", "real-colon-train")` when it continues DINOv2 weights. The benchmark records the
-declaration on every leaderboard row. Before publishing, the cached frames are searched for copies
-of test images.
+`("lvd-142m", "real-colon-train")` when it continues DINOv2 weights. The recipes record this in the
+exported file, and the benchmark shows the declaration on every leaderboard row. Before publishing,
+the cached frames are searched for copies of test images.
 
 ```bash
 uv run polyps-data check data/corpora/real-colon-train --output matches.csv

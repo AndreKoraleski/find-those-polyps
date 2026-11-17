@@ -32,6 +32,7 @@ dependencies = [
 find-those-polyps = "find_those_polyps.cli:main"
 polyps-corpora = "find_those_polyps.pretraining.__main__:main"
 polyps-data = "find_those_polyps.data.__main__:main"
+polyps-pretrain = "find_those_polyps.pretraining.train:main"
 polyps-evaluate = "find_those_polyps.evaluation.__main__:main"
 polyps-registry = "find_those_polyps.registry.__main__:main"
 polyps-split = "find_those_polyps.registry.build:main"
